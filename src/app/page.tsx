@@ -181,7 +181,7 @@ function Stars() {
       <div
         className="absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse at 50% 40%, rgba(123,147,219,0.06) 0%, rgba(15,14,23,0) 60%)",
+          background: "radial-gradient(ellipse at 50% 40%, rgba(168,85,247,0.06) 0%, rgba(15,14,23,0) 60%)",
         }}
       />
       {/* 装饰性柔光 */}
@@ -192,7 +192,7 @@ function Stars() {
           height: "300px",
           top: "10%",
           right: "-80px",
-          background: "radial-gradient(circle, rgba(244,162,97,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(236,72,153,0.04) 0%, transparent 70%)",
           filter: "blur(40px)",
         }}
       />
@@ -203,7 +203,7 @@ function Stars() {
           height: "250px",
           bottom: "15%",
           left: "-60px",
-          background: "radial-gradient(circle, rgba(110,196,158,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(168,85,247,0.03) 0%, transparent 70%)",
           filter: "blur(40px)",
         }}
       />
@@ -219,7 +219,7 @@ function Stars() {
             left: `${star.left}%`,
             opacity: star.opacity,
             backgroundColor: star.isBright
-              ? (i % 3 === 0 ? "#f4a261" : i % 3 === 1 ? "#7b93db" : "#ffffff")
+              ? (i % 3 === 0 ? "#c084fc" : i % 3 === 1 ? "#f472b6" : "#ffffff")
               : "#ffffff",
             boxShadow: star.isBright
               ? `0 0 ${4 + star.width}px rgba(255,255,255,0.4)`
@@ -244,7 +244,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -30 }}
       transition={{ duration: 0.6 }}
-      className="z-10 w-full max-w-md px-8 text-center"
+      className="z-10 w-full max-w-md px-6 text-center"
     >
       <motion.h1
         initial={{ opacity: 0, scale: 0.8 }}
@@ -253,7 +253,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
         className="font-bold mb-2"
         style={{
           fontSize: "var(--text-5xl)",
-          background: "linear-gradient(90deg, #f4a261 0%, #e76f6f 40%, #f4a261 60%, #ffd700 80%, #f4a261 100%)",
+          background: "linear-gradient(90deg, #c084fc 0%, #ec4899 30%, #a855f7 50%, #f472b6 70%, #c084fc 100%)",
           backgroundSize: "200% auto",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
@@ -266,7 +266,8 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
-        className="text-[#a7a0c4] mb-4 text-sm tracking-[0.3em]"
+        className="mb-3 text-sm tracking-[0.3em]"
+        style={{ color: "#c4b5fd" }}
       >
         灵光七日卡
       </motion.p>
@@ -293,28 +294,28 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
         <div
           className="absolute -top-20 -right-20 w-40 h-40 rounded-full pointer-events-none"
           style={{
-            background: "radial-gradient(circle, rgba(244,162,97,0.08) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(168,85,247,0.1) 0%, transparent 70%)",
             filter: "blur(20px)",
           }}
         />
         <div
           className="absolute -bottom-16 -left-16 w-32 h-32 rounded-full pointer-events-none"
           style={{
-            background: "radial-gradient(circle, rgba(123,147,219,0.06) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(236,72,153,0.08) 0%, transparent 70%)",
             filter: "blur(20px)",
           }}
         />
 
         {/* 呼吸光晕的 emoji */}
         <div
-          className="relative text-6xl mb-6"
+          className="relative text-5xl mb-3"
           style={{ animation: "breathe-glow 3s ease-in-out infinite" }}
         >
           🐱
         </div>
 
         <h2 className="text-xl font-medium mb-2 relative z-10">你的猫叫什么名字？</h2>
-        <p className="text-[#a7a0c4] text-sm mb-6 relative z-10">让我认识一下它的灵魂</p>
+        <p className="text-[#a7a0c4] text-sm mb-8 relative z-10">让我认识一下它的灵魂</p>
 
         {/* 输入框带聚焦光效 */}
         <div className="relative mb-6">
@@ -329,7 +330,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
             className="relative z-10 w-full bg-[#1a1826] text-center text-xl py-4 rounded-xl focus:outline-none transition-all placeholder:text-white/20 border border-white/[0.08]"
             style={{
               boxShadow: focused
-                ? "0 0 0 2px rgba(123,147,219,0.3), 0 0 20px rgba(123,147,219,0.1)"
+                ? "0 0 0 2px rgba(168,85,247,0.4), 0 0 20px rgba(168,85,247,0.1)"
                 : "none",
             }}
             autoFocus
@@ -346,8 +347,8 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
           onClick={() => onStart(name)}
           className="spark-btn relative z-10 w-full text-white py-4"
           style={{
-            background: "linear-gradient(135deg, var(--accent-moon) 0%, var(--accent-forest) 100%)",
-            boxShadow: "0 4px 20px rgba(123,147,219,0.25)",
+            background: "var(--brand-gradient)",
+            boxShadow: "0 4px 24px var(--brand-glow), 0 1px 3px rgba(0,0,0,0.2)",
             borderRadius: "var(--radius-md)",
           }}
         >
@@ -371,7 +372,7 @@ function TestStage({
   if (!scenario) return null;
 
   // 每道题对应的氛围色
-  const questionColors = ["#7b93db", "#f4a261", "#6ec49e", "#e76f6f", "#a78bfa"];
+  const questionColors = ["#a855f7", "#ec4899", "#c084fc", "#f472b6", "#a855f7"];
   const qColor = questionColors[currentQuestion % questionColors.length];
 
   return (
@@ -413,7 +414,7 @@ function TestStage({
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
-          className="text-5xl mb-4"
+          className="text-5xl mb-3"
           style={{ animation: "gentle-float 3s ease-in-out infinite" }}
         >
           {scenario.emoji}
@@ -422,7 +423,7 @@ function TestStage({
       </div>
 
       {/* 选项 - 统一风格 */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {scenario.options.map((opt, idx) => (
           <motion.button
             key={idx}
@@ -434,8 +435,8 @@ function TestStage({
             className="spark-option w-full text-left leading-relaxed"
             style={{ fontSize: "var(--text-base)" }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = `${qColor}30`;
-              e.currentTarget.style.boxShadow = `inset 0 0 30px rgba(255,255,255,0.02), 0 0 15px ${qColor}10`;
+              e.currentTarget.style.borderColor = "rgba(168,85,247,0.25)";
+              e.currentTarget.style.boxShadow = "inset 0 0 30px rgba(168,85,247,0.03), 0 0 15px rgba(168,85,247,0.06)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = "var(--border-subtle)";
@@ -495,7 +496,7 @@ function ResultStage({
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, type: "spring" }}
-          className="text-sm text-[#a7a0c4] mb-3 tracking-widest"
+          className="text-sm text-[#a7a0c4] mb-2 tracking-widest"
         >
           灵魂连接成功
         </motion.div>
@@ -535,7 +536,7 @@ function ResultStage({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
-            className="text-7xl mb-4"
+            className="text-7xl mb-3"
           >
             {p.emoji}
           </motion.div>
@@ -569,7 +570,7 @@ function ResultStage({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 transition={{ duration: 0.6 }}
-                className="bg-black/20 p-6 rounded-2xl text-left text-[15px] leading-[1.8] text-white/85 whitespace-pre-line"
+                className="bg-black/20 p-7 rounded-2xl text-left text-[15px] leading-[2] text-white/85 whitespace-pre-line"
               >
                 {p.selfIntro(catName)}
               </motion.div>
@@ -717,7 +718,7 @@ function ProfileStage({
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
-          <div className="text-6xl mb-6">{p.emoji}</div>
+          <div className="text-6xl mb-3">{p.emoji}</div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-6 rounded-2xl border border-white/5 mb-8">
             <p className="text-white/90 text-lg leading-relaxed">
               我知道我是什么样的猫了。
@@ -743,7 +744,7 @@ function ProfileStage({
           animate={{ opacity: 1, x: 0 }}
           className="w-full"
         >
-          <div className="text-center mb-6">
+          <div className="text-center mb-3">
             <span className="text-4xl">{p.emoji}</span>
           </div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-5 rounded-2xl border border-white/5 mb-6">
@@ -752,7 +753,7 @@ function ProfileStage({
             </p>
           </div>
 
-          <div className="space-y-3 mb-6">
+          <div className="space-y-4 mb-6">
             {[["I", "E"], ["N", "S"], ["T", "F"], ["J", "P"]].map((pair, idx) => (
               <div key={idx} className="flex gap-3">
                 {pair.map((letter) => (
@@ -816,7 +817,7 @@ function ProfileStage({
             ))}
           </div>
 
-          <div className="text-center mb-4">
+          <div className="text-center mb-3">
             <span className="text-4xl">{p.emoji}</span>
           </div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-5 rounded-2xl border border-white/5 mb-6">
@@ -825,7 +826,7 @@ function ProfileStage({
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {PROFILE_QUESTIONS[qIndex].options.map((opt, idx) => (
               <motion.button
                 key={idx}
@@ -859,7 +860,7 @@ function ProfileStage({
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="text-6xl mb-6">{p.emoji}</div>
+          <div className="text-6xl mb-3">{p.emoji}</div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-6 rounded-2xl border border-white/5">
             <p className="text-white/90 text-lg leading-relaxed" style={{ color: p.color }}>
               {catResponse}
@@ -875,7 +876,7 @@ function ProfileStage({
           animate={{ opacity: 1 }}
           className="text-center"
         >
-          <div className="text-6xl mb-6">{p.emoji}</div>
+          <div className="text-6xl mb-3">{p.emoji}</div>
           <p className="text-white/90 text-xl leading-relaxed">
             好，我记住了。
           </p>
@@ -1089,8 +1090,8 @@ function ChatStage({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1 }}
             onClick={onNext}
-            className="w-full font-bold py-4 rounded-xl shadow-lg active:scale-[0.97] transition-transform text-white"
-            style={{ backgroundColor: p.color }}
+            className="spark-btn w-full py-4 text-white"
+            style={{ background: "var(--brand-gradient)", boxShadow: "0 4px 24px var(--brand-glow)" }}
           >
             7天后…… ✨
           </motion.button>
@@ -1161,6 +1162,7 @@ function TimelineStage({
         </motion.h1>
       </div>
 
+
       <div className="flex-1 overflow-y-auto hide-scrollbar pb-4">
         <div className="relative pl-8">
           {/* 时间线竖线 - 发光效果 */}
@@ -1184,7 +1186,7 @@ function TimelineStage({
                   : { opacity: 0, x: -20 }
               }
               transition={{ duration: 0.5 }}
-              className="relative mb-6"
+              className="relative mb-8"
             >
               {/* 圆点 */}
               <div
@@ -1220,16 +1222,16 @@ function TimelineStage({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="pt-3"
+          className="pt-8"
           style={{ paddingBottom: "calc(var(--safe-bottom) + var(--space-2xl))" }}
         >
           <button
             onClick={onNext}
             className="spark-btn w-full py-4 text-white"
             style={{
-              backgroundColor: p.color,
+              background: "var(--brand-gradient)",
               fontSize: "var(--text-lg)",
-              boxShadow: `0 0 30px rgba(${p.colorRgb}, 0.3)`,
+              boxShadow: "0 4px 24px var(--brand-glow)",
             }}
           >
             查看灵光卡 🌟
@@ -1390,7 +1392,7 @@ function CardStage({
                     initial={{ opacity: 0, x: -10 }}
                     animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
                     transition={{ delay: idx * 0.3, duration: 0.5 }}
-                    className={`text-lg leading-[2.2] ${
+                    className={`text-lg leading-[2.4] ${
                       line.trim() === "" ? "h-4" : "text-white/90"
                     }`}
                     style={{ fontFamily: "'Noto Serif SC', serif, Georgia" }}
@@ -1405,7 +1407,7 @@ function CardStage({
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: lines.length * 0.3 + 0.5 }}
-                className="border-t border-white/10 pt-6 flex items-center justify-between"
+                className="border-t border-white/10 pt-8 flex items-center justify-between"
               >
                 <div>
                   <p className="text-xs text-white/40">Spark7 · 灵光卡</p>
@@ -1428,7 +1430,7 @@ function CardStage({
             initial={{ opacity: 0, y: 20 }}
             animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: lines.length * 0.3 + 1 }}
-            className="mt-8 space-y-3"
+            className="mt-10 space-y-4"
           >
             <button
               onClick={() => {
@@ -1437,7 +1439,7 @@ function CardStage({
               }}
               className="spark-btn w-full py-4 text-white"
               style={{
-                backgroundColor: saved ? "var(--accent-forest)" : p.color,
+                background: saved ? "var(--accent-forest)" : "var(--brand-gradient)",
                 boxShadow: `0 0 30px rgba(${p.colorRgb}, 0.3)`,
               }}
             >
@@ -1563,7 +1565,7 @@ function ExitStage({
           animate={{ opacity: 1, y: 0 }}
           className="w-full text-center"
         >
-          <div className="text-5xl mb-6">{p.emoji}</div>
+          <div className="text-5xl mb-3">{p.emoji}</div>
           <h2 className="text-xl font-bold mb-2">
             {catName}想知道……
           </h2>
@@ -1571,7 +1573,7 @@ function ExitStage({
             这次体验，你觉得怎么样？
           </p>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {feedbackOptions.map((opt) => (
               <motion.button
                 key={opt.key}
@@ -1596,7 +1598,7 @@ function ExitStage({
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="text-6xl mb-6">{p.emoji}</div>
+          <div className="text-6xl mb-3">{p.emoji}</div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-6 rounded-2xl border border-white/5">
             <p className="text-white/90 text-lg leading-relaxed" style={{ color: p.color }}>
               {catFeedbackReply[p.type][feedback]}
@@ -1612,7 +1614,7 @@ function ExitStage({
           animate={{ opacity: 1, y: 0 }}
           className="w-full text-center"
         >
-          <div className="text-4xl mb-4">📮</div>
+          <div className="text-4xl mb-3">📮</div>
           <h2 className="text-xl font-bold mb-2">
             想在 Spark7 上线时第一个知道吗？
           </h2>
@@ -1644,8 +1646,8 @@ function ExitStage({
             disabled={!contact.trim()}
             className="spark-btn w-full py-4 text-white disabled:opacity-30"
             style={{
-              backgroundColor: p.color,
-              boxShadow: `0 0 30px rgba(${p.colorRgb}, 0.3)`,
+              background: submitted ? "var(--accent-forest)" : "var(--brand-gradient)",
+              boxShadow: `0 4px 24px var(--brand-glow)`,
             }}
           >
             {submitted ? "已加入 ✓" : "加入等待列表 ✨"}
@@ -1672,7 +1674,7 @@ function ExitStage({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
-            className="text-6xl mb-6"
+            className="text-6xl mb-3"
           >
             {p.emoji}
           </motion.div>
@@ -1681,7 +1683,7 @@ function ExitStage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-2xl font-bold mb-3"
+            className="text-2xl font-bold mb-2"
           >
             谢谢你认识{catName}
           </motion.h2>

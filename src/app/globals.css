@@ -25,6 +25,14 @@
   --accent-forest: #6ec49e;
   --accent-glow: #ffd700;
   
+  /* 全局紫红主色调 */
+  --brand-primary: #a855f7;
+  --brand-secondary: #ec4899;
+  --brand-gradient: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #c084fc 100%);
+  --brand-gradient-subtle: linear-gradient(135deg, rgba(168,85,247,0.2) 0%, rgba(236,72,153,0.1) 100%);
+  --brand-glow: rgba(168, 85, 247, 0.3);
+  --brand-glow-pink: rgba(236, 72, 153, 0.25);
+  
   /* 色彩 - 边框 */
   --border-subtle: rgba(255, 255, 255, 0.05);
   --border-light: rgba(255, 255, 255, 0.08);
@@ -84,10 +92,12 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html, body {
@@ -228,7 +238,7 @@ button, [role="button"], a {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: var(--space-lg) var(--space-xl);
+  padding: 18px var(--space-xl);
   min-height: var(--touch-min);
   transition: border-color var(--duration-normal) var(--ease-out),
               box-shadow var(--duration-normal) var(--ease-out),
@@ -238,7 +248,8 @@ button, [role="button"], a {
 
 .spark-option:active {
   transform: scale(0.97);
-  border-color: var(--border-medium);
+  border-color: rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.08);
 }
 
 /* 统一按钮基础 */
