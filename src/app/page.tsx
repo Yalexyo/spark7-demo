@@ -1617,174 +1617,187 @@ function CardStage({
 
       {(phase === "reveal" || phase === "full") && (
         <motion.div
-          initial={{ opacity: 0, rotateY: 90, scale: 0.8 }}
-          animate={{ opacity: 1, rotateY: 0, scale: 1 }}
-          transition={{ duration: 0.8, type: "spring" }}
+          initial={{ opacity: 0, y: 40, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 1, type: "spring", damping: 20 }}
           className="w-full"
-          style={{ perspective: 1000 }}
         >
+          {/* ===== 灵光卡主体 · 纸张质感 ===== */}
           <div
             ref={cardRef}
-            className="relative rounded-[1.5rem] overflow-hidden shadow-2xl"
-            style={{
-              background: "linear-gradient(180deg, rgba(35,33,54,1) 0%, rgba(26,24,38,1) 100%)",
-              border: `1px solid rgba(${p.colorRgb}, 0.2)`,
-              boxShadow: `0 0 80px rgba(${p.colorRgb}, 0.2), 0 0 30px rgba(${p.colorRgb}, 0.08), inset 0 1px 0 rgba(255,255,255,0.08)`,
-            }}
+            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden"
+            style={{ border: "0.5px solid #E8E4DE" }}
           >
-            {/* 顶部插画区 */}
+            {/* 1. 插画区 45% · 非对称有机边缘 */}
             {cardImage ? (
-              <div className="relative overflow-hidden" style={{ aspectRatio: "1/1", maxHeight: "320px" }}>
+              <div className="relative" style={{ minHeight: "200px", maxHeight: "340px" }}>
                 <motion.img
                   src={cardImage}
                   alt={`${catName}的灵光卡`}
-                  initial={{ opacity: 0, scale: 1.05 }}
+                  initial={{ opacity: 0, scale: 1.03 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.8 }}
+                  transition={{ duration: 1.2 }}
                   className="w-full h-full object-cover"
+                  style={{ aspectRatio: "4/3" }}
                 />
-                {/* 底部渐变融合 */}
-                <div
-                  className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
-                  style={{ background: "linear-gradient(to top, rgba(26,24,38,1) 0%, transparent 100%)" }}
-                />
-                {/* 星光装饰 */}
-                {CARD_STARS.map((s, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-1 h-1 bg-white rounded-full"
-                    style={{
-                      top: `${s.top}%`,
-                      left: `${s.left}%`,
-                      opacity: s.opacity,
-                      animation: `twinkle ${s.duration}s infinite ${s.delay}s`,
-                    }}
+                {/* 有机曲线过渡：图片底部 → 纸色 */}
+                <svg
+                  className="absolute bottom-0 left-0 w-full pointer-events-none"
+                  viewBox="0 0 400 40"
+                  preserveAspectRatio="none"
+                  style={{ height: "40px" }}
+                >
+                  <path
+                    d="M0,40 L0,20 C50,8 100,28 150,16 C200,4 250,24 300,12 C350,0 380,18 400,10 L400,40 Z"
+                    fill="#FDFBF8"
                   />
-                ))}
+                </svg>
               </div>
             ) : (
               <div
-                className="relative overflow-hidden flex items-center justify-center"
+                className="relative flex items-center justify-center"
                 style={{
-                  height: "120px",
-                  background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.45) 0%, rgba(${p.colorRgb}, 0.12) 50%, transparent 100%)`,
+                  height: "160px",
+                  background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.08) 0%, rgba(${p.colorRgb}, 0.03) 100%)`,
                 }}
               >
                 <motion.span
-                  animate={{ y: [0, -4, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="text-6xl"
-                  style={{ opacity: 0.85 }}
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                  className="text-5xl"
+                  style={{ opacity: 0.6 }}
                 >
                   {p.emoji}
                 </motion.span>
-                {CARD_STARS.map((s, i) => (
-                  <div
-                    key={i}
-                    className="absolute w-1 h-1 bg-white rounded-full"
-                    style={{
-                      top: `${s.top}%`,
-                      left: `${s.left}%`,
-                      opacity: s.opacity,
-                      animation: `twinkle ${s.duration}s infinite ${s.delay}s`,
-                    }}
+                <svg
+                  className="absolute bottom-0 left-0 w-full pointer-events-none"
+                  viewBox="0 0 400 30"
+                  preserveAspectRatio="none"
+                  style={{ height: "30px" }}
+                >
+                  <path
+                    d="M0,30 L0,15 C80,5 160,20 240,10 C320,0 370,12 400,8 L400,30 Z"
+                    fill="#FDFBF8"
                   />
-                ))}
+                </svg>
               </div>
             )}
 
-            {/* 诗文区 */}
-            <div className="px-6 pt-5 pb-4">
-              <div className="mb-4">
-                {lines.map((line, idx) => (
-                  <motion.p
-                    key={idx}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
-                    transition={{ delay: idx * 0.25, duration: 0.4 }}
-                    className={`text-[15px] leading-[1.9] ${
-                      line.trim() === "" ? "h-2" : "text-white/90"
-                    }`}
-                    style={{ fontFamily: "'Noto Serif SC', serif, Georgia" }}
-                  >
-                    {line}
-                  </motion.p>
-                ))}
+            {/* 2. 内容区 55% · 文学排版 */}
+            <div className="relative z-10 px-7 pt-1 pb-0" style={{ background: "#FDFBF8" }}>
+              {/* 人格徽标 · 浮于图文交界 */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.2, duration: 0.6 }}
+                className="mb-5 flex items-center gap-2"
+              >
+                <span className="text-lg">{p.emoji}</span>
+                <span
+                  className="sparkle-meta"
+                  style={{ color: p.color, fontSize: "10px", letterSpacing: "0.12em" }}
+                >
+                  {p.name}
+                </span>
+              </motion.div>
+
+              {/* 诗文 · 变奏式字重 */}
+              <div className="mb-8">
+                {lines.map((line, idx) => {
+                  const trimmed = line.trim();
+                  if (trimmed === "") return <div key={idx} className="h-4" />;
+                  // 变奏式字重：短句（≤6字）更坚定，长句更轻盈，最后一句加重
+                  const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
+                  const isShort = trimmed.length <= 6;
+                  const weightClass = isLast
+                    ? "sparkle-poem-line--bold"
+                    : isShort
+                    ? "sparkle-poem-line--regular"
+                    : "sparkle-poem-line--light";
+                  return (
+                    <motion.p
+                      key={idx}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
+                      transition={{ delay: 0.3 + idx * 0.2, duration: 0.5 }}
+                      className={`sparkle-poem-line ${weightClass}`}
+                    >
+                      {trimmed}
+                    </motion.p>
+                  );
+                })}
               </div>
 
-              {/* 底部元信息 */}
+              {/* 档案层 · 博物馆馆藏风 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
-                transition={{ delay: lines.length * 0.25 + 0.3 }}
-                className="border-t border-white/10 pt-4 flex items-center justify-between"
+                transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
+                className="pt-4 mb-6"
+                style={{ borderTop: "0.5px solid #E8E4DE" }}
               >
-                <div>
-                  <p className="text-[10px] text-white/35 mb-0.5">Spark7 · 灵光卡</p>
-                  <p className="text-xs font-bold" style={{ color: p.color }}>
-                    {catName}的第一张灵光
-                  </p>
+                <div className="flex items-baseline justify-between">
+                  <div className="sparkle-meta">
+                    SPARK7 · 灵光卡 · NO.001
+                  </div>
+                  <div className="sparkle-meta">
+                    {new Date().toLocaleDateString("en-CA")}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-white/35 mb-0.5">{p.emoji} {p.name}</p>
-                  <p className="text-[10px] text-white/25">
-                    {new Date().toLocaleDateString("zh-CN")}
-                  </p>
+                <div className="mt-2">
+                  <span
+                    className="text-[13px] font-medium"
+                    style={{ color: "#3D3832", fontFamily: "'Noto Serif SC', serif" }}
+                  >
+                    {catName}的第一张灵光
+                  </span>
                 </div>
               </motion.div>
+
+              {/* 仪式感留白 · 底部 20% */}
+              <div className="h-8" />
             </div>
           </div>
 
-          {/* 操作按钮 - 并排布局 */}
+          {/* 5. 去干扰化按钮 · 线框极简 */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: lines.length * 0.25 + 0.8 }}
-            className="mt-6 space-y-3"
+            initial={{ opacity: 0 }}
+            animate={phase === "full" ? { opacity: 1 } : {}}
+            transition={{ delay: 0.3 + lines.length * 0.2 + 0.8 }}
+            className="mt-8 flex items-center justify-center gap-4"
           >
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setSaved(true);
-                  setTimeout(() => setSaved(false), 2000);
-                }}
-                className="spark-btn flex-1 py-3.5 text-white text-sm"
-                style={{
-                  background: saved ? "var(--accent-forest)" : "var(--brand-gradient)",
-                  boxShadow: "0 4px 20px var(--brand-glow)",
-                }}
-              >
-                {saved ? "已保存 ✓" : "保存 📱"}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: `${catName}的灵光卡`,
-                      text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
-                      url: window.location.href,
-                    });
-                  }
-                }}
-                className="spark-btn flex-1 py-3.5 text-white/70 text-sm"
-                style={{
-                  border: "1px solid var(--border-medium)",
-                  background: "transparent",
-                }}
-              >
-                分享 📤
-              </button>
-            </div>
-
             <button
-              onClick={onNext}
-              className="w-full py-2.5 text-sm"
-              style={{ color: "var(--text-muted)", minHeight: "var(--touch-min)" }}
+              onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
+              className="sparkle-action-btn"
             >
-              继续 →
+              {saved ? "已保存 ✓" : "保存"}
+            </button>
+            <button
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({
+                    title: `${catName}的灵光卡`,
+                    text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
+                    url: window.location.href,
+                  });
+                }
+              }}
+              className="sparkle-action-btn"
+            >
+              分享
             </button>
           </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={phase === "full" ? { opacity: 1 } : {}}
+            transition={{ delay: 0.3 + lines.length * 0.2 + 1.2 }}
+            onClick={onNext}
+            className="w-full mt-5 py-3 text-[13px]"
+            style={{ color: "#B8B0A4" }}
+          >
+            继续 →
+          </motion.button>
         </motion.div>
       )}
     </motion.div>

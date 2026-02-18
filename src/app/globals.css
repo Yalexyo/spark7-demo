@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&display=swap');
 
 :root {
   /* ===== Spark7 Design System ===== */
@@ -327,4 +327,78 @@ button, [role="button"], a {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ===== 灵光卡 · 纸张质感系统 ===== */
+
+.sparkle-card {
+  background-color: #FDFBF8;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 纤维质感：1% 微噪点 */
+.sparkle-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 单侧向下长扩散阴影 */
+.sparkle-card-shadow {
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    0 20px 60px rgba(0, 0, 0, 0.04);
+}
+
+/* 诗文排版 */
+.sparkle-poem-line {
+  font-family: 'Noto Serif SC', serif, Georgia;
+  font-size: 15px;
+  line-height: 1.85em;
+  letter-spacing: 0.05em;
+  color: #2D2A26;
+}
+
+.sparkle-poem-line--light {
+  font-weight: 300;
+  color: #4A4640;
+}
+
+.sparkle-poem-line--regular {
+  font-weight: 400;
+  color: #2D2A26;
+}
+
+.sparkle-poem-line--bold {
+  font-weight: 500;
+  color: #1A1816;
+}
+
+/* 档案层：博物馆馆藏风 */
+.sparkle-meta {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #B8B0A4;
+}
+
+/* 去干扰化按钮 */
+.sparkle-action-btn {
+  font-size: 13px;
+  color: #9A9189;
+  padding: 10px 20px;
+  border: 1px solid #E8E4DE;
+  border-radius: 6px;
+  background: transparent;
+  transition: all 0.2s;
+}
+.sparkle-action-btn:active {
+  background: #F5F2ED;
+  color: #6B645C;
 }
