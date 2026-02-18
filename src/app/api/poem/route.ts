@@ -54,7 +54,7 @@ ${conversationBlock}
 
 核心要求：
 - 从对话记录中提炼最触动人心的瞬间（一个细节、一句话、一个画面）
-- 用猫的第一人称，6-10行，可以有空行分段
+- 用猫的第一人称，5-8行，每行不超过16个字，可以有空行分段
 - 不要标题，直接输出诗
 - 语气要符合你的性格风格
 - 融入主人的真实状态和需要（但不要直接提MBTI这个词）
@@ -74,7 +74,7 @@ ${secondaryType ? "- 在最后隐约透出你性格中的另一面" : ""}
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 1.0,
-            maxOutputTokens: 300,
+            maxOutputTokens: 200,
           },
         }),
       }

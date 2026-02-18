@@ -99,26 +99,39 @@ The illustration should tell the STORY from their conversation, not just a gener
     }
 
     const prompt = `Generate a beautiful illustration for a keepsake card called "灵光卡" (Sparkle Card).
+This card captures the bond between a cat and their human — it is NOT a cat portrait. It is a RELATIONSHIP portrait.
 
-Subject: A cat named "${catName}".
+The cat: "${catName}"
 ${catAppearance}
 
-Default scene (use ONLY if no conversation context): The cat is ${ps.scene}.
+${conversation
+  ? `CRITICAL — This is their real conversation. Extract the most emotional moment and paint THAT scene:
 ${sceneInspiration}
+
+The illustration MUST depict the specific scene from the conversation above — showing BOTH the cat AND their human together in that moment.`
+  : `Default scene (no conversation provided): The cat is ${ps.scene}, with their human nearby.`}
 ${moodHints}
 
 Art style: ${stylePrompt}
 Color palette: ${ps.palette}
 Emotional mood: ${ps.mood}
 
-Composition requirements:
-- The cat is the main subject, occupying about 40-60% of the frame
-- If a specific scene was extracted from the conversation, depict THAT scene
-- Simple, atmospheric background with emotional depth
-- Beautiful lighting that matches the mood
+COMPOSITION — This is about the relationship, not just the cat:
+- Show BOTH the cat AND their human in the scene — this is essential
+- The human should be depicted gently: soft silhouette, partial figure (hands petting, lap with cat curled up, back view sitting together, feet by the door, etc.)
+- Do NOT show the human's full detailed face (keep it universal and poetic)
+- The cat and the human should be INTERACTING — touching, near each other, sharing a moment
+- Examples of good compositions:
+  · Cat curled on human's lap, human's hand resting on the cat
+  · Human sitting by window, cat leaning against their leg
+  · Human sleeping on couch, cat watching over them from nearby
+  · Human's hand reaching toward the cat in morning light
+  · Both silhouetted together against moonlight/sunset
+- Emotional depth through body language — the space between them tells the story
 - Square composition (1:1 aspect ratio)
+- Beautiful atmospheric lighting that matches the mood
 - Absolutely NO text, NO words, NO letters, NO numbers anywhere in the image
-- This is a precious keepsake card capturing a real relationship - make it deeply personal and emotional`;
+- This card will make someone cry or smile — make it deeply personal and emotionally resonant`;
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,

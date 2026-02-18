@@ -1498,15 +1498,15 @@ function CardStage({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center overflow-y-auto hide-scrollbar"
-      style={{ paddingTop: "env(safe-area-inset-top, 16px)", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
+      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center overflow-y-auto hide-scrollbar"
+      style={{ paddingTop: "env(safe-area-inset-top, 20px)", paddingBottom: "env(safe-area-inset-bottom, 24px)" }}
     >
       {/* B. 画风选择 */}
       {phase === "style-select" && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center w-full"
+          className="text-center w-full my-auto"
         >
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
@@ -1568,7 +1568,7 @@ function CardStage({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center"
+          className="text-center my-auto"
         >
           {/* 粒子汇聚动画 */}
           <div className="relative w-32 h-32 mx-auto mb-6">
@@ -1621,13 +1621,12 @@ function CardStage({
           initial={{ opacity: 0, y: 40, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1, type: "spring", damping: 20 }}
-          className="w-full flex flex-col"
-          style={{ maxHeight: "calc(100dvh - env(safe-area-inset-top, 16px) - env(safe-area-inset-bottom, 16px) - 32px)" }}
+          className="w-full"
         >
           {/* ===== 灵光卡主体 · 纸张质感 ===== */}
           <div
             ref={cardRef}
-            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden flex-1 min-h-0 flex flex-col"
+            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden flex flex-col"
             style={{ border: "0.5px solid #E8E4DE" }}
           >
             {/* 1. 插画区 ~42% · 非对称有机边缘 · 弹性高度 */}
@@ -1685,7 +1684,7 @@ function CardStage({
             )}
 
             {/* 2. 内容区 ~58% · 文学排版 · flex 弹性填充 */}
-            <div className="relative z-10 px-6 pt-1 flex-1 min-h-0 flex flex-col justify-between" style={{ background: "#FDFBF8" }}>
+            <div className="relative z-10 px-6 pt-1 flex flex-col" style={{ background: "#FDFBF8" }}>
               <div>
                 {/* 人格徽标 */}
                 <motion.div
