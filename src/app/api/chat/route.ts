@@ -41,6 +41,22 @@ function getTypeInstruction(type: string, round: number, catName: string): strin
 - 温柔但不煽情，符合你的性格
 - 说完这句话主人会看到灵光卡，所以要有"画上句号"的感觉`;
 
+    case "timeline":
+      return `基于你和主人的真实对话，生成7天共处日记。每天一句话，用猫的第一人称。
+
+核心规则：
+- 对话中提到的具体细节必须出现在某一天里（比如主人说累了、聊到某个话题等）
+- Day 1-2 是刚认识，轻松日常
+- Day 3-4 开始熟悉，融入对话中的情感
+- Day 5-6 更亲密，可以加入你观察到的主人的习惯
+- Day 7 是最后一天，要有点不舍但温暖
+
+格式要求（严格JSON，不要任何多余文字）：
+[{"day":1,"text":"日记内容","emoji":"😺"},{"day":2,"text":"...","emoji":"..."},...共7条]
+
+每条 text 限制 20-35 个中文字。emoji 选一个最贴合的。
+只输出 JSON 数组，不要任何解释、markdown、代码块。`;
+
     default: // reply
       return `你的主人刚对你说话了，用你的猫人格风格回复。
 要求：
@@ -90,8 +106,8 @@ ${userProfile?.energyLevel ? `- 近期状态：${energyMap[userProfile.energyLev
 ${userProfile?.needType ? `- 最需要：${needMap[userProfile.needType] || userProfile.needType}` : ""}
 
 ${historyStr ? `你们之前的对话：\n${historyStr}\n` : ""}
-${userMessage ? `主人刚说：「${userMessage}」\n` : ""}
-${depthHint}
+${type === "timeline" && userMessage ? `你们7天的完整对话记录：\n${userMessage}\n` : userMessage ? `主人刚说：「${userMessage}」\n` : ""}
+${type !== "timeline" ? depthHint : ""}
 
 ${typeInstruction}
 
@@ -106,8 +122,8 @@ ${typeInstruction}
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 150,
+            temperature: type === "timeline" ? 0.85 : 0.9,
+            maxOutputTokens: type === "timeline" ? 600 : 150,
           },
         }),
       }

@@ -136,6 +136,7 @@ export default function Home() {
             personality={personality}
             secondaryType={secondaryType}
             userProfile={userProfile}
+            chatHistory={chatHistory}
             onNext={() => setStage("card")}
           />
         )}
@@ -1251,24 +1252,56 @@ function TimelineStage({
   personality: p,
   secondaryType,
   userProfile,
+  chatHistory,
   onNext,
 }: {
   catName: string;
   personality: Personality;
   secondaryType: PersonalityType | null;
   userProfile?: UserProfile;
+  chatHistory?: {from: string; text: string}[];
   onNext: () => void;
 }) {
-  // Day 4 → 副型反差萌，Day 5 → MBTI「关于你」时刻
+  // 模板 fallback
   const mbti = userProfile?.mbti;
   const baseEntries = p.timeline(catName, userProfile);
-  const entries = baseEntries.map((e) => {
+  const fallbackEntries = baseEntries.map((e) => {
     if (e.day === 4 && secondaryType) return secondaryMoments[secondaryType](catName);
     if (e.day === 5 && mbti && mbtiMoments[p.type][mbti]) return mbtiMoments[p.type][mbti](catName);
     return e;
   });
+
+  const [entries, setEntries] = useState(fallbackEntries);
   const [visibleCount, setVisibleCount] = useState(0);
   const [showButton, setShowButton] = useState(false);
+
+  // AI 生成个性化 7 天时间轴（调专用 /api/timeline）
+  useEffect(() => {
+    if (!chatHistory || chatHistory.length === 0) return;
+    fetch("/api/timeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catName,
+        personalityType: p.type,
+        secondaryType,
+        userProfile,
+        chatHistory,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.entries) && data.entries.length === 7) {
+          setEntries(data.entries.map((item: { day: number; text: string; emoji: string }, i: number) => ({
+            day: item.day || i + 1,
+            text: item.text,
+            emoji: item.emoji || fallbackEntries[i]?.emoji || "✨",
+          })));
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (visibleCount < entries.length) {
