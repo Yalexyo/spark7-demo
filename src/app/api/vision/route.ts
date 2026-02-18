@@ -15,16 +15,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no image" }, { status: 400 });
     }
 
-    const prompt = `分析这张猫咪照片，提取以下信息（用中文）：
+    const prompt = `You are an expert cat portrait artist. Analyze this cat photo and extract a detailed visual description that could be used to recreate this SPECIFIC cat in an illustration.
 
-1. **外观**：毛色、花纹、毛长、体型（如：橘白色短毛，微胖圆脸）
-2. **表情/状态**：当前看起来的样子（如：眯着眼慵懒地趴着）
-3. **特别之处**：一个有趣的细节（如：左耳有一小撮翘起的毛）
+Return JSON with these fields:
 
-格式要求：
-- 用 JSON 格式返回：{"appearance": "...", "mood": "...", "detail": "..."}
-- 每个字段一句话，简洁生动
-- 只输出 JSON，不要其他内容`;
+1. "appearance": Detailed physical description in English. Include: fur color(s) and pattern (tabby/solid/bicolor/calico/etc.), fur length, body type (slim/stocky/muscular/chubby), face shape, ear shape, eye color. Be SPECIFIC enough to distinguish this cat from others. (2-3 sentences)
+
+2. "mood": Current expression and body language in English. (1 sentence)
+
+3. "detail": One unique identifying feature that makes this cat special — a distinctive marking, scar, ear notch, nose pattern, paw color, etc. (1 sentence)
+
+4. "appearance_cn": Same as appearance but in Chinese. (1-2 sentences)
+
+Output ONLY the JSON object, no other text.`;
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
@@ -64,9 +67,13 @@ export async function POST(req: Request) {
     try {
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const parsed = JSON.parse(cleaned);
+      // 英文完整描述给配图 API，中文给用户展示
+      const enFull = [parsed.appearance, parsed.mood, parsed.detail].filter(Boolean).join(" ");
+      const cnDisplay = parsed.appearance_cn || parsed.appearance;
       return NextResponse.json({
         description: parsed,
-        summary: `${parsed.appearance}，${parsed.mood}`,
+        summary: cnDisplay,
+        summaryEn: enFull,
       });
     } catch {
       // 如果 JSON 解析失败，返回原始文本

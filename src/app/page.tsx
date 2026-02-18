@@ -38,6 +38,9 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState<{from: string; text: string}[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>();
   const [catDescription, setCatDescription] = useState<string | null>(null);
+  const [catDescriptionEn, setCatDescriptionEn] = useState<string | null>(null);
+  const [catPhotoBase64, setCatPhotoBase64] = useState<string | null>(null);
+  const [catPhotoMime, setCatPhotoMime] = useState<string | null>(null);
   const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
 
   const personality = personalities[personalityType];
@@ -70,6 +73,8 @@ export default function Home() {
               // 异步 Vision 分析（在测试期间后台运行）
               if (photoBase64) {
                 setCatPhotoUrl(`data:${photoMime || "image/jpeg"};base64,${photoBase64}`);
+                setCatPhotoBase64(photoBase64);
+                setCatPhotoMime(photoMime || "image/jpeg");
                 fetch("/api/vision", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -78,6 +83,7 @@ export default function Home() {
                   .then((r) => r.json())
                   .then((data) => {
                     if (data.summary) setCatDescription(data.summary);
+                    if (data.summaryEn) setCatDescriptionEn(data.summaryEn);
                   })
                   .catch(() => {});
               }
@@ -152,6 +158,9 @@ export default function Home() {
             chatReply={chatReply}
             chatHistory={chatHistory}
             catDescription={catDescription}
+            catDescriptionEn={catDescriptionEn}
+            catPhotoBase64={catPhotoBase64}
+            catPhotoMime={catPhotoMime}
             onNext={() => setStage("exit")}
           />
         )}
@@ -1472,6 +1481,9 @@ function CardStage({
   chatReply,
   chatHistory,
   catDescription,
+  catDescriptionEn,
+  catPhotoBase64,
+  catPhotoMime,
   onNext,
 }: {
   catName: string;
@@ -1482,6 +1494,9 @@ function CardStage({
   chatReply?: string;
   chatHistory?: {from: string; text: string}[];
   catDescription?: string | null;
+  catDescriptionEn?: string | null;
+  catPhotoBase64?: string | null;
+  catPhotoMime?: string | null;
   onNext: () => void;
 }) {
   // B. 画风选择
@@ -1535,12 +1550,14 @@ function CardStage({
       }),
     }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
 
-    // 图片（传完整对话 + 画风）
+    // 图片（传完整对话 + 画风 + 英文描述 + 原始猫照）
     fetch("/api/card-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        catName, personalityType, catDescription,
+        catName, personalityType,
+        catDescription: catDescriptionEn || catDescription,
+        catPhotoBase64, catPhotoMime,
         artStyle: style,
         conversation: conversationForApi,
         userProfile,

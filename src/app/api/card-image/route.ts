@@ -46,7 +46,7 @@ const personalityScenes: Record<string, { scene: string; palette: string; mood: 
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, catDescription, artStyle, conversation, userProfile } = await req.json();
+    const { catName, personalityType, catDescription, catPhotoBase64, catPhotoMime, artStyle, conversation, userProfile } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -133,13 +133,31 @@ COMPOSITION — This is about the relationship, not just the cat:
 - Absolutely NO text, NO words, NO letters, NO numbers anywhere in the image
 - This card will make someone cry or smile — make it deeply personal and emotionally resonant`;
 
+    // Multimodal: 原始猫照作为参考图 + 文本 prompt
+    const parts: Array<{text?: string; inlineData?: {mimeType: string; data: string}}> = [];
+
+    if (catPhotoBase64) {
+      // 先发参考图，让模型"看到"这只猫的真实样子
+      parts.push({
+        inlineData: {
+          mimeType: catPhotoMime || "image/jpeg",
+          data: catPhotoBase64,
+        },
+      });
+      parts.push({
+        text: `Above is the REAL photo of the cat "${catName}". Your illustration MUST accurately depict THIS SPECIFIC cat — same fur colors, same patterns, same body type, same distinctive features. Do not invent a generic cat.\n\n${prompt}`,
+      });
+    } else {
+      parts.push({ text: prompt });
+    }
+
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ parts }],
           generationConfig: {
             responseModalities: ["IMAGE", "TEXT"],
             temperature: 0.9,
@@ -149,8 +167,8 @@ COMPOSITION — This is about the relationship, not just the cat:
     );
 
     const data = await res.json();
-    const parts = data?.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData);
+    const resParts = data?.candidates?.[0]?.content?.parts || [];
+    const imagePart = resParts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData);
 
     if (imagePart?.inlineData) {
       return NextResponse.json({
