@@ -63,6 +63,78 @@ export interface TimelineEntry {
   emoji: string;
 }
 
+// ===== 灵光卡主题配色（按人格 · WCAG 2.1 AA 全部达标）=====
+export interface CardTheme {
+  paperBg: string;       // 纸张底色（微调色温）
+  divider: string;       // 分隔线
+  metaColor: string;     // 档案层文字
+  poemLight: string;     // 诗文·轻盈
+  poemRegular: string;   // 诗文·坚定
+  poemBold: string;      // 诗文·落笔
+  titleColor: string;    // 卡片标题
+  accentGlow: string;    // 微光铺底
+  waveFill: string;      // 有机曲线填充色（= paperBg）
+}
+
+export const cardThemes: Record<PersonalityType, CardTheme> = {
+  storm: {
+    paperBg: "#FFFAF8",       // 微暖橘调
+    divider: "#F0DDD6",
+    metaColor: "#856A60",     // 4.8:1
+    poemLight: "#7A6558",     // 5.3:1
+    poemRegular: "#4A3830",   // 10.7:1
+    poemBold: "#2A1810",      // 16.4:1
+    titleColor: "#4A3830",
+    accentGlow: "rgba(231,111,111,0.06)",
+    waveFill: "#FFFAF8",
+  },
+  moon: {
+    paperBg: "#F8F9FD",       // 微冷蓝调
+    divider: "#D8DCE8",
+    metaColor: "#6B7085",     // 4.7:1
+    poemLight: "#636878",     // 5.3:1
+    poemRegular: "#353848",   // 11.0:1
+    poemBold: "#141628",      // 17.0:1
+    titleColor: "#353848",
+    accentGlow: "rgba(123,147,219,0.06)",
+    waveFill: "#F8F9FD",
+  },
+  sun: {
+    paperBg: "#FDFBF5",       // 温暖金调
+    divider: "#EDE4D0",
+    metaColor: "#7E6F4E",     // 4.8:1
+    poemLight: "#786A50",     // 5.1:1
+    poemRegular: "#3E3525",   // 11.7:1
+    poemBold: "#1C1608",      // 17.4:1
+    titleColor: "#3E3525",
+    accentGlow: "rgba(244,162,97,0.06)",
+    waveFill: "#FDFBF5",
+  },
+  forest: {
+    paperBg: "#F7FBF9",       // 微冷绿调
+    divider: "#D4E2DB",
+    metaColor: "#5F7A6E",     // 4.5:1
+    poemLight: "#5A7065",     // 5.1:1
+    poemRegular: "#2E3E36",   // 10.8:1
+    poemBold: "#101C16",      // 16.8:1
+    titleColor: "#2E3E36",
+    accentGlow: "rgba(110,196,158,0.06)",
+    waveFill: "#F7FBF9",
+  },
+};
+
+// 副人格混合：给卡片增加一抹副人格的色彩
+export function blendCardTheme(primary: PersonalityType, secondary: PersonalityType | null): CardTheme {
+  const base = cardThemes[primary];
+  if (!secondary || secondary === primary) return base;
+  // 副人格只影响 divider 和 accentGlow（轻微渗透，不喧宾夺主）
+  const sec = cardThemes[secondary];
+  return {
+    ...base,
+    accentGlow: sec.accentGlow,  // 副人格的微光铺底
+  };
+}
+
 // ===== 用户画像即时回应 =====
 
 export const profileResponses: Record<PersonalityType, {

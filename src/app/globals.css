@@ -332,7 +332,7 @@ button, [role="button"], a {
 /* ===== 灵光卡 · 纸张质感系统 ===== */
 
 .sparkle-card {
-  background-color: #FDFBF8;
+  background-color: inherit; /* 由 inline style 控制，跟随人格主题 */
   position: relative;
   overflow: hidden;
 }

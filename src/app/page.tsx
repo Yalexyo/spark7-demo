@@ -20,6 +20,7 @@ import {
   secondaryCoda,
   mbtiMoments,
   mbtiPoemOpener,
+  blendCardTheme,
 } from "@/lib/data";
 
 type Stage = "welcome" | "test" | "result" | "profile" | "chat" | "timeline" | "card" | "exit";
@@ -1420,6 +1421,9 @@ function CardStage({
   const [saved, setSaved] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // 主题配色（主人格 + 副人格融合）
+  const theme = blendCardTheme(personalityType, secondaryType);
+
   // AI 诗句 fallback
   const mbti = userProfile?.mbti;
   const fallbackBase = p.poem(catName, userProfile);
@@ -1627,7 +1631,7 @@ function CardStage({
           <div
             ref={cardRef}
             className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden flex flex-col"
-            style={{ border: "0.5px solid #E8E4DE" }}
+            style={{ border: `0.5px solid ${theme.divider}`, background: theme.accentGlow }}
           >
             {/* 1. 插画区 ~42% · 非对称有机边缘 · 弹性高度 */}
             {cardImage ? (
@@ -1649,7 +1653,7 @@ function CardStage({
                 >
                   <path
                     d="M0,40 L0,20 C50,8 100,28 150,16 C200,4 250,24 300,12 C350,0 380,18 400,10 L400,40 Z"
-                    fill="#FDFBF8"
+                    fill={theme.waveFill}
                   />
                 </svg>
               </div>
@@ -1677,14 +1681,14 @@ function CardStage({
                 >
                   <path
                     d="M0,30 L0,15 C80,5 160,20 240,10 C320,0 370,12 400,8 L400,30 Z"
-                    fill="#FDFBF8"
+                    fill={theme.waveFill}
                   />
                 </svg>
               </div>
             )}
 
             {/* 2. 内容区 ~58% · 文学排版 · flex 弹性填充 */}
-            <div className="relative z-10 px-6 pt-1 flex flex-col" style={{ background: "#FDFBF8" }}>
+            <div className="relative z-10 px-6 pt-1 flex flex-col" style={{ background: theme.paperBg }}>
               <div>
                 {/* 人格徽标 */}
                 <motion.div
@@ -1709,18 +1713,16 @@ function CardStage({
                     if (trimmed === "") return <div key={idx} style={{ height: "clamp(6px, 1.2dvh, 14px)" }} />;
                     const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
                     const isShort = trimmed.length <= 6;
-                    const weightClass = isLast
-                      ? "sparkle-poem-line--bold"
-                      : isShort
-                      ? "sparkle-poem-line--regular"
-                      : "sparkle-poem-line--light";
+                    const poemColor = isLast ? theme.poemBold : isShort ? theme.poemRegular : theme.poemLight;
+                    const poemWeight = isLast ? 500 : isShort ? 400 : 300;
                     return (
                       <motion.p
                         key={idx}
                         initial={{ opacity: 0, x: -6 }}
                         animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
                         transition={{ delay: 0.3 + idx * 0.2, duration: 0.5 }}
-                        className={`sparkle-poem-line ${weightClass}`}
+                        className="sparkle-poem-line"
+                        style={{ color: poemColor, fontWeight: poemWeight }}
                       >
                         {trimmed}
                       </motion.p>
@@ -1735,20 +1737,20 @@ function CardStage({
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
                 className="pt-3 pb-5"
-                style={{ borderTop: "0.5px solid #DDD8D0" }}
+                style={{ borderTop: `0.5px solid ${theme.divider}` }}
               >
                 <div className="flex items-baseline justify-between">
-                  <div className="sparkle-meta">
+                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
                     SPARK7 · 灵光卡 · NO.001
                   </div>
-                  <div className="sparkle-meta">
+                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
                     {new Date().toLocaleDateString("en-CA")}
                   </div>
                 </div>
                 <div className="mt-1.5">
                   <span
                     className="text-[13px] font-medium"
-                    style={{ color: "#3D3530", fontFamily: "'Noto Serif SC', serif" }}
+                    style={{ color: theme.titleColor, fontFamily: "'Noto Serif SC', serif" }}
                   >
                     {catName}的第一张灵光
                   </span>
