@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Vercel Serverless 超时设置（免费版最大 60 秒，图片生成需要 5-15 秒）
-export const maxDuration = 30;
+// Edge Function：免费版超时 30 秒（Serverless 只有 10 秒，图片生成不够用）
+export const runtime = "edge";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // 图片生成专用模型
