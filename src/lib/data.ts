@@ -430,15 +430,15 @@ export const scenarios: Scenario[] = [
       },
       {
         text: "你感觉到它在某处注视着你，但它不急",
-        scores: { storm: 0, moon: 3, sun: 0, forest: 1 },
+        scores: { storm: 0, moon: 3, sun: 0, forest: 0 },
       },
       {
         text: "它会过来，不急不慢地蹭你，像是说「回来啦，真好」",
-        scores: { storm: 0, moon: 1, sun: 3, forest: 0 },
+        scores: { storm: 0, moon: 0, sun: 3, forest: 1 },
       },
       {
         text: "好像什么都没变，但你发现它悄悄换了个离你更近的位置",
-        scores: { storm: 0, moon: 0, sun: 0, forest: 3 },
+        scores: { storm: 0, moon: 1, sun: 0, forest: 3 },
       },
     ],
   },
@@ -452,11 +452,11 @@ export const scenarios: Scenario[] = [
       },
       {
         text: "潮汐。安静的时候很安静，来的时候挡不住",
-        scores: { storm: 1, moon: 3, sun: 0, forest: 1 },
+        scores: { storm: 1, moon: 3, sun: 0, forest: 0 },
       },
       {
         text: "小太阳。在哪里都自带暖意和好心情",
-        scores: { storm: 0, moon: 0, sun: 3, forest: 0 },
+        scores: { storm: 0, moon: 0, sun: 3, forest: 1 },
       },
       {
         text: "旁观者。它好像什么都看在眼里，但很少主动表态",
@@ -470,19 +470,19 @@ export const scenarios: Scenario[] = [
     options: [
       {
         text: "你想睡了但它不让你睡，总有新花样",
-        scores: { storm: 3, moon: 0, sun: 1, forest: 0 },
+        scores: { storm: 3, moon: 0, sun: 0, forest: 1 },
       },
       {
         text: "它不知道什么时候来的，等你发现时它已经在你脚边了",
-        scores: { storm: 0, moon: 3, sun: 0, forest: 1 },
+        scores: { storm: 0, moon: 3, sun: 1, forest: 0 },
       },
       {
         text: "它主动霸占你身上或旁边的位置，明确要你陪",
-        scores: { storm: 0, moon: 0, sun: 3, forest: 0 },
+        scores: { storm: 1, moon: 0, sun: 3, forest: 0 },
       },
       {
         text: "你们各占一个角落，但这种距离感反而很舒服",
-        scores: { storm: 0, moon: 0, sun: 0, forest: 3 },
+        scores: { storm: 0, moon: 1, sun: 0, forest: 3 },
       },
     ],
   },
@@ -496,7 +496,7 @@ export const scenarios: Scenario[] = [
       },
       {
         text: "需要等它来找你，它选择你的时刻才是真正的撸猫时间",
-        scores: { storm: 0, moon: 3, sun: 0, forest: 1 },
+        scores: { storm: 0, moon: 3, sun: 1, forest: 0 },
       },
       {
         text: "基本来者不拒，翻肚皮就是它的待客之道",
@@ -504,7 +504,7 @@ export const scenarios: Scenario[] = [
       },
       {
         text: "它允许你摸，但表情永远是「行吧，我给你个面子」",
-        scores: { storm: 0, moon: 1, sun: 0, forest: 3 },
+        scores: { storm: 1, moon: 0, sun: 0, forest: 3 },
       },
     ],
   },
@@ -514,15 +514,15 @@ export const scenarios: Scenario[] = [
     options: [
       {
         text: "「你看我你看我！你为什么不看我！！」",
-        scores: { storm: 3, moon: 0, sun: 1, forest: 0 },
+        scores: { storm: 3, moon: 0, sun: 0, forest: 1 },
       },
       {
         text: "「……你在就好。不用特地陪我。」",
-        scores: { storm: 0, moon: 3, sun: 0, forest: 1 },
+        scores: { storm: 0, moon: 3, sun: 1, forest: 0 },
       },
       {
         text: "「嘿！今天又是很棒的一天呢！对吧对吧！」",
-        scores: { storm: 0, moon: 0, sun: 3, forest: 0 },
+        scores: { storm: 1, moon: 0, sun: 3, forest: 0 },
       },
       {
         text: "「我没有在看你。……好吧我在。」",
