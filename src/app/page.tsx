@@ -1272,17 +1272,27 @@ function TimelineStage({
   });
 
   const [entries, setEntries] = useState(fallbackEntries);
+  const [contentReady, setContentReady] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
-  const visibleCountRef = useRef(0);
-  useEffect(() => { visibleCountRef.current = visibleCount; }, [visibleCount]);
   const [showButton, setShowButton] = useState(false);
 
-  // AI 生成个性化 7 天时间轴（调专用 /api/timeline）
-  const [aiRequested, setAiRequested] = useState(false);
+  // AI 生成 → 就绪后再开始动画。超时 6 秒 fallback 模板。
   useEffect(() => {
-    if (aiRequested) return;
-    if (!chatHistory || chatHistory.length === 0) return;
-    setAiRequested(true);
+    let settled = false;
+    const settle = (data?: typeof fallbackEntries) => {
+      if (settled) return;
+      settled = true;
+      if (data) setEntries(data);
+      setContentReady(true);
+    };
+
+    // 超时兜底
+    const timeout = setTimeout(() => settle(), 6000);
+
+    if (!chatHistory || chatHistory.length === 0) {
+      settle();
+      return () => clearTimeout(timeout);
+    }
 
     fetch("/api/timeline", {
       method: "POST",
@@ -1303,17 +1313,20 @@ function TimelineStage({
             text: item.text || fallbackEntries[i]?.text || "",
             emoji: item.emoji || fallbackEntries[i]?.emoji || "✨",
           }));
-          // 替换尚未显示的条目 + 已显示的保留（避免跳变）
-          setEntries((prev) => prev.map((e, i) => i < visibleCountRef.current ? e : aiEntries[i]));
-          // 1秒后全部替换（用户注意力已在新条目上）
-          setTimeout(() => setEntries(aiEntries), 1000);
+          settle(aiEntries);
+        } else {
+          settle();
         }
       })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatHistory, aiRequested]);
+      .catch(() => settle());
 
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 内容就绪后才开始逐条动画
   useEffect(() => {
+    if (!contentReady) return;
     if (visibleCount < entries.length) {
       const t = setTimeout(() => setVisibleCount((v) => v + 1), 900);
       return () => clearTimeout(t);
@@ -1321,7 +1334,7 @@ function TimelineStage({
       const t = setTimeout(() => setShowButton(true), 800);
       return () => clearTimeout(t);
     }
-  }, [visibleCount, entries.length]);
+  }, [contentReady, visibleCount, entries.length]);
 
   return (
     <motion.div
@@ -1349,7 +1362,27 @@ function TimelineStage({
       </div>
 
 
-      <div className="flex-1 overflow-y-auto hide-scrollbar pb-4">
+      {/* Loading 状态 */}
+      {!contentReady && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex-1 flex flex-col items-center justify-center gap-4"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="text-3xl"
+          >
+            {p.emoji}
+          </motion.div>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            正在回忆这 7 天……
+          </p>
+        </motion.div>
+      )}
+
+      <div className="flex-1 overflow-y-auto hide-scrollbar pb-4" style={{ display: contentReady ? "block" : "none" }}>
         <div className="relative pl-8">
           {/* 时间线竖线 - 发光效果 */}
           <div
