@@ -355,50 +355,61 @@ button, [role="button"], a {
     0 20px 60px rgba(0, 0, 0, 0.04);
 }
 
-/* 诗文排版 · 响应式 */
+/* 诗文排版 · 响应式 · WCAG 2.1 AA 全部达标
+ *
+ * 变奏式字重 × 呼吸感配色（背景 #FDFBF8）:
+ * ┌─────────────┬──────────┬────────┬──────────┐
+ * │ 层级         │ 色值      │ 对比度  │ 角色      │
+ * ├─────────────┼──────────┼────────┼──────────┤
+ * │ Light 轻盈   │ #70665C  │ 5.4:1  │ 长句·呼气 │
+ * │ Regular 坚定 │ #3D3530  │ 11.6:1 │ 短句·吸气 │
+ * │ Bold 落笔    │ #1A1612  │ 17.4:1 │ 末句·收尾 │
+ * │ Meta 档案    │ #7A7065  │ 4.7:1  │ 等宽小字  │
+ * └─────────────┴──────────┴────────┴──────────┘
+ * 轻盈↔落笔对比度差 3.2x → 视觉呼吸感
+ */
 .sparkle-poem-line {
   font-family: 'Noto Serif SC', serif, Georgia;
   font-size: clamp(13px, 2dvh, 15px);
   line-height: 1.85em;
   letter-spacing: 0.05em;
-  color: #2D2A26;
 }
 
 .sparkle-poem-line--light {
   font-weight: 300;
-  color: #4A4640;
+  color: #70665C; /* 5.4:1 · 轻盈呼气 */
 }
 
 .sparkle-poem-line--regular {
   font-weight: 400;
-  color: #2D2A26;
+  color: #3D3530; /* 11.6:1 · 坚定吸气 */
 }
 
 .sparkle-poem-line--bold {
   font-weight: 500;
-  color: #1A1816;
+  color: #1A1612; /* 17.4:1 · 深沉落笔 */
 }
 
-/* 档案层：博物馆馆藏风 */
+/* 档案层：博物馆馆藏风 · WCAG AA 达标 */
 .sparkle-meta {
   font-family: 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #B8B0A4;
+  color: #7A7065; /* 4.7:1 · 低调但清晰 */
 }
 
-/* 去干扰化按钮 */
+/* 去干扰化按钮 · 统一色系 */
 .sparkle-action-btn {
   font-size: 13px;
-  color: #9A9189;
+  color: #7A7065; /* 与 meta 统一 · 4.7:1 */
   padding: 10px 20px;
-  border: 1px solid #E8E4DE;
+  border: 1px solid #DDD8D0;
   border-radius: 6px;
   background: transparent;
   transition: all 0.2s;
 }
 .sparkle-action-btn:active {
   background: #F5F2ED;
-  color: #6B645C;
+  color: #3D3530;
 }

@@ -1735,7 +1735,7 @@ function CardStage({
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
                 className="pt-3 pb-5"
-                style={{ borderTop: "0.5px solid #E8E4DE" }}
+                style={{ borderTop: "0.5px solid #DDD8D0" }}
               >
                 <div className="flex items-baseline justify-between">
                   <div className="sparkle-meta">
@@ -1748,7 +1748,7 @@ function CardStage({
                 <div className="mt-1.5">
                   <span
                     className="text-[13px] font-medium"
-                    style={{ color: "#3D3832", fontFamily: "'Noto Serif SC', serif" }}
+                    style={{ color: "#3D3530", fontFamily: "'Noto Serif SC', serif" }}
                   >
                     {catName}的第一张灵光
                   </span>
