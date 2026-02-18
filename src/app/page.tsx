@@ -35,6 +35,8 @@ export default function Home() {
   const [isPure, setIsPure] = useState(true);
   const [chatReply, setChatReply] = useState("");
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>();
+  const [catDescription, setCatDescription] = useState<string | null>(null);
+  const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
 
   const personality = personalities[personalityType];
 
@@ -60,9 +62,23 @@ export default function Home() {
         {stage === "welcome" && (
           <WelcomeStage
             key="welcome"
-            onStart={(name) => {
+            onStart={(name, photoBase64, photoMime) => {
               setCatName(name || "小咪");
               setStage("test");
+              // 异步 Vision 分析（在测试期间后台运行）
+              if (photoBase64) {
+                setCatPhotoUrl(`data:${photoMime || "image/jpeg"};base64,${photoBase64}`);
+                fetch("/api/vision", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ imageBase64: photoBase64, mimeType: photoMime }),
+                })
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.summary) setCatDescription(data.summary);
+                  })
+                  .catch(() => {});
+              }
             }}
           />
         )}
@@ -104,6 +120,7 @@ export default function Home() {
             catName={catName}
             personality={personality}
             userProfile={userProfile}
+            catDescription={catDescription}
             onReply={setChatReply}
             onNext={() => setStage("timeline")}
           />
@@ -129,6 +146,7 @@ export default function Home() {
             secondaryType={secondaryType}
             userProfile={userProfile}
             chatReply={chatReply}
+            catDescription={catDescription}
             onNext={() => setStage("exit")}
           />
         )}
@@ -236,9 +254,27 @@ function Stars() {
 
 // ==================== 欢迎页 ====================
 
-function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
+function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, photoMime?: string) => void }) {
   const [name, setName] = useState("");
   const [focused, setFocused] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoMime, setPhotoMime] = useState<string>("image/jpeg");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoMime(file.type || "image/jpeg");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setPhotoPreview(dataUrl);
+      // 提取 base64 部分（去掉 data:image/xxx;base64, 前缀）
+      setPhotoBase64(dataUrl.split(",")[1]);
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <motion.div
@@ -345,8 +381,48 @@ function WelcomeStage({ onStart }: { onStart: (name: string) => void }) {
           )}
         </div>
 
+        {/* 猫咪照片上传（可选） */}
+        <div className="relative z-10 mb-6">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhoto}
+            className="hidden"
+          />
+          {photoPreview ? (
+            <div className="flex items-center justify-center gap-3">
+              <div
+                className="w-16 h-16 rounded-full bg-cover bg-center border-2"
+                style={{
+                  backgroundImage: `url(${photoPreview})`,
+                  borderColor: "rgba(168,85,247,0.4)",
+                  boxShadow: "0 0 12px rgba(168,85,247,0.2)",
+                }}
+              />
+              <div className="text-left">
+                <p className="text-sm text-white/70">照片已上传 ✓</p>
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="text-xs text-purple-400 hover:text-purple-300"
+                >
+                  重新选择
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-full py-3 rounded-xl border border-dashed border-white/10 text-white/40 text-sm hover:border-purple-500/30 hover:text-white/60 transition-all"
+            >
+              📷 上传一张猫咪照片（可选）
+            </button>
+          )}
+        </div>
+
         <button
-          onClick={() => onStart(name)}
+          onClick={() => onStart(name, photoBase64 || undefined, photoMime)}
           className="spark-btn relative z-10 w-full text-white py-4"
           style={{
             background: "var(--brand-gradient)",
@@ -936,12 +1012,14 @@ function ChatStage({
   catName,
   personality: p,
   userProfile,
+  catDescription,
   onReply,
   onNext,
 }: {
   catName: string;
   personality: Personality;
   userProfile?: UserProfile;
+  catDescription?: string | null;
   onReply: (reply: string) => void;
   onNext: () => void;
 }) {
@@ -1011,6 +1089,7 @@ function ChatStage({
           personalityType: p.type,
           userMessage: reply,
           userProfile,
+          catDescription,
           conversationHistory: history,
         }),
       });
@@ -1315,6 +1394,7 @@ function CardStage({
   secondaryType,
   userProfile,
   chatReply,
+  catDescription,
   onNext,
 }: {
   catName: string;
@@ -1323,6 +1403,7 @@ function CardStage({
   secondaryType: PersonalityType | null;
   userProfile?: UserProfile;
   chatReply?: string;
+  catDescription?: string | null;
   onNext: () => void;
 }) {
   const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
@@ -1351,6 +1432,7 @@ function CardStage({
             secondaryType,
             userProfile,
             userReply: chatReply,
+            catDescription,
           }),
         });
         const data = await res.json();
@@ -1394,7 +1476,7 @@ function CardStage({
           className="text-center"
         >
           {/* 粒子汇聚动画 */}
-          <div className="relative w-40 h-40 mx-auto mb-8">
+          <div className="relative w-32 h-32 mx-auto mb-6">
             {Array.from({ length: 12 }).map((_, i) => (
               <motion.div
                 key={i}
@@ -1449,29 +1531,29 @@ function CardStage({
         >
           <div
             ref={cardRef}
-            className="relative rounded-[2rem] overflow-hidden shadow-2xl"
+            className="relative rounded-[1.5rem] overflow-hidden shadow-2xl"
             style={{
               background: "linear-gradient(180deg, rgba(35,33,54,1) 0%, rgba(26,24,38,1) 100%)",
               border: `1px solid rgba(${p.colorRgb}, 0.2)`,
-              boxShadow: `0 0 100px rgba(${p.colorRgb}, 0.25), 0 0 40px rgba(${p.colorRgb}, 0.1), inset 0 1px 0 rgba(255,255,255,0.08)`,
+              boxShadow: `0 0 80px rgba(${p.colorRgb}, 0.2), 0 0 30px rgba(${p.colorRgb}, 0.08), inset 0 1px 0 rgba(255,255,255,0.08)`,
             }}
           >
-            {/* 顶部渐变 - 更丰富的层次 */}
+            {/* 顶部渐变区 - 紧凑精致 */}
             <div
-              className="h-52 relative overflow-hidden"
+              className="relative overflow-hidden flex items-center justify-center"
               style={{
-                background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.5) 0%, rgba(${p.colorRgb}, 0.15) 40%, rgba(${p.colorRgb}, 0.05) 70%, transparent 100%)`,
+                height: "120px",
+                background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.45) 0%, rgba(${p.colorRgb}, 0.12) 50%, transparent 100%)`,
               }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                <motion.span
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="text-8xl opacity-80"
-                >
-                  {p.emoji}
-                </motion.span>
-              </div>
+              <motion.span
+                animate={{ y: [0, -4, 0] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                className="text-6xl"
+                style={{ opacity: 0.85 }}
+              >
+                {p.emoji}
+              </motion.span>
               {/* 星光装饰 */}
               {CARD_STARS.map((s, i) => (
                 <div
@@ -1487,17 +1569,17 @@ function CardStage({
               ))}
             </div>
 
-            {/* 诗 */}
-            <div className="px-8 py-8">
-              <div className="mb-8">
+            {/* 诗文区 */}
+            <div className="px-6 pt-5 pb-4">
+              <div className="mb-4">
                 {lines.map((line, idx) => (
                   <motion.p
                     key={idx}
-                    initial={{ opacity: 0, x: -10 }}
+                    initial={{ opacity: 0, x: -8 }}
                     animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
-                    transition={{ delay: idx * 0.3, duration: 0.5 }}
-                    className={`text-lg leading-[2.4] ${
-                      line.trim() === "" ? "h-4" : "text-white/90"
+                    transition={{ delay: idx * 0.25, duration: 0.4 }}
+                    className={`text-[15px] leading-[2] ${
+                      line.trim() === "" ? "h-3" : "text-white/90"
                     }`}
                     style={{ fontFamily: "'Noto Serif SC', serif, Georgia" }}
                   >
@@ -1506,22 +1588,22 @@ function CardStage({
                 ))}
               </div>
 
-              {/* 底部信息 */}
+              {/* 底部元信息 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
-                transition={{ delay: lines.length * 0.3 + 0.5 }}
-                className="border-t border-white/10 pt-8 flex items-center justify-between"
+                transition={{ delay: lines.length * 0.25 + 0.3 }}
+                className="border-t border-white/10 pt-4 flex items-center justify-between"
               >
                 <div>
-                  <p className="text-xs text-white/40">Spark7 · 灵光卡</p>
-                  <p className="text-sm font-bold" style={{ color: p.color }}>
+                  <p className="text-[10px] text-white/35 mb-0.5">Spark7 · 灵光卡</p>
+                  <p className="text-xs font-bold" style={{ color: p.color }}>
                     {catName}的第一张灵光
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-white/40">{p.emoji} {p.name}</p>
-                  <p className="text-xs text-white/30">
+                  <p className="text-[10px] text-white/35 mb-0.5">{p.emoji} {p.name}</p>
+                  <p className="text-[10px] text-white/25">
                     {new Date().toLocaleDateString("zh-CN")}
                   </p>
                 </div>
@@ -1529,49 +1611,51 @@ function CardStage({
             </div>
           </div>
 
-          {/* 操作按钮 */}
+          {/* 操作按钮 - 并排布局 */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: lines.length * 0.3 + 1 }}
-            className="mt-10 space-y-4"
+            transition={{ delay: lines.length * 0.25 + 0.8 }}
+            className="mt-6 space-y-3"
           >
-            <button
-              onClick={() => {
-                setSaved(true);
-                setTimeout(() => setSaved(false), 2000);
-              }}
-              className="spark-btn w-full py-4 text-white"
-              style={{
-                background: saved ? "var(--accent-forest)" : "var(--brand-gradient)",
-                boxShadow: `0 0 30px rgba(${p.colorRgb}, 0.3)`,
-              }}
-            >
-              {saved ? "已保存 ✓" : "保存到相册 📱"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setSaved(true);
+                  setTimeout(() => setSaved(false), 2000);
+                }}
+                className="spark-btn flex-1 py-3.5 text-white text-sm"
+                style={{
+                  background: saved ? "var(--accent-forest)" : "var(--brand-gradient)",
+                  boxShadow: "0 4px 20px var(--brand-glow)",
+                }}
+              >
+                {saved ? "已保存 ✓" : "保存 📱"}
+              </button>
 
-            <button
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: `${catName}的灵光卡`,
-                    text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
-                    url: window.location.href,
-                  });
-                }
-              }}
-              className="spark-btn w-full py-4 text-white/70"
-              style={{
-                border: "1px solid var(--border-medium)",
-                background: "transparent",
-              }}
-            >
-              分享给朋友 📤
-            </button>
+              <button
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: `${catName}的灵光卡`,
+                      text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
+                      url: window.location.href,
+                    });
+                  }
+                }}
+                className="spark-btn flex-1 py-3.5 text-white/70 text-sm"
+                style={{
+                  border: "1px solid var(--border-medium)",
+                  background: "transparent",
+                }}
+              >
+                分享 📤
+              </button>
+            </div>
 
             <button
               onClick={onNext}
-              className="w-full py-3 text-sm mt-2"
+              className="w-full py-2.5 text-sm"
               style={{ color: "var(--text-muted)", minHeight: "var(--touch-min)" }}
             >
               继续 →

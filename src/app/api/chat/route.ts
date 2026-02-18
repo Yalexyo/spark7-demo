@@ -12,7 +12,7 @@ const personalityPrompts: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, userMessage, userProfile, conversationHistory } = await req.json();
+    const { catName, personalityType, userMessage, userProfile, catDescription, conversationHistory } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     const prompt = `你是一只叫「${catName}」的猫。
 ${personalityGuide}
-
+${catDescription ? `\n你的外观：${catDescription}\n` : ""}
 关于你的主人：
 ${userProfile?.mbti ? `- MBTI：${userProfile.mbti}` : ""}
 ${userProfile?.schedule ? `- 日常节奏：${scheduleMap[userProfile.schedule] || userProfile.schedule}` : ""}
