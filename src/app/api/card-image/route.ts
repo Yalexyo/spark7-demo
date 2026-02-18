@@ -14,7 +14,6 @@ const artStylePrompts: Record<string, string> = {
   storybook: "Warm children's storybook illustration, soft rounded shapes, cozy textured paper feel, golden hour lighting, Beatrix Potter meets modern picture book",
 };
 
-// 每种人格默认画风
 const personalityDefaultStyle: Record<string, string> = {
   storm: "anime",
   moon: "ink",
@@ -22,7 +21,6 @@ const personalityDefaultStyle: Record<string, string> = {
   forest: "watercolor",
 };
 
-// 每种人格的场景 + 配色 + 情绪
 const personalityScenes: Record<string, { scene: string; palette: string; mood: string }> = {
   storm: {
     scene: "在夕阳金光中跳跃，毛发飞扬，充满活力，尾巴高高翘起",
@@ -48,51 +46,55 @@ const personalityScenes: Record<string, { scene: string; palette: string; mood: 
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, catDescription, artStyle, chatContext, userProfile } = await req.json();
+    const { catName, personalityType, catDescription, artStyle, conversation, userProfile } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
     const ps = personalityScenes[personalityType] || personalityScenes.sun;
-
-    // A. 画风：用户选择 > 人格默认
     const style = artStyle || personalityDefaultStyle[personalityType] || "watercolor";
     const stylePrompt = artStylePrompts[style] || artStylePrompts.watercolor;
 
-    // 猫的外观
     const catAppearance = catDescription
       ? `This cat's real appearance: ${catDescription}`
       : "A cute domestic cat";
 
-    // ===== C. 融入对话/用户上下文 =====
-    let contextScene = "";
+    // ===== C. 从完整对话提炼画面场景 =====
+    let sceneInspiration = "";
 
-    // 从对话内容提取场景灵感
-    if (chatContext) {
-      contextScene += `\nEmotional context from their conversation: "${chatContext}"`;
-      contextScene += `\nLet this emotional tone subtly influence the atmosphere and mood of the illustration.`;
+    if (conversation) {
+      sceneInspiration = `
+IMPORTANT - The following is the real 7-day conversation between this cat and their human.
+Read it carefully and extract ONE specific emotional moment or scene to depict in the illustration:
+---
+${conversation}
+---
+Transform the most touching moment from this conversation into a visual scene.
+For example: if they talked about waiting by the door, show the cat waiting; if they discussed late nights, show moonlit companionship.
+The illustration should tell the STORY from their conversation, not just a generic cat portrait.`;
     }
 
-    // 从用户画像提取氛围
+    // 用户画像氛围
+    let moodHints = "";
     if (userProfile) {
       const moodMap: Record<string, string> = {
-        tired: "The human is tired lately - show a gentle, restful atmosphere",
-        stressed: "The human is stressed - show a calming, peaceful moment",
-        meh: "The human feels low - show warmth and quiet companionship",
-        full: "The human is energetic - show a vibrant, lively moment",
+        tired: "gentle, restful atmosphere - the human needs peace",
+        stressed: "calming, protective feeling - the cat is a sanctuary",
+        meh: "warm companionship - quiet but deeply present",
+        full: "vibrant, playful energy - joy shared between two souls",
       };
       const needMap: Record<string, string> = {
-        understand: "Theme of deep understanding between cat and human",
-        remind: "Theme of gentle care and reminders",
-        cheer: "Theme of joy and playfulness",
-        quiet: "Theme of peaceful silent companionship",
+        understand: "deep mutual understanding, eye contact, knowing glances",
+        remind: "gentle care, the cat watching over sleeping human",
+        cheer: "playfulness, mischief, something that makes you smile",
+        quiet: "peaceful silence, two beings simply existing together",
       };
       if (userProfile.energyLevel && moodMap[userProfile.energyLevel]) {
-        contextScene += `\n${moodMap[userProfile.energyLevel]}`;
+        moodHints += `\nEmotional undertone: ${moodMap[userProfile.energyLevel]}`;
       }
       if (userProfile.needType && needMap[userProfile.needType]) {
-        contextScene += `\n${needMap[userProfile.needType]}`;
+        moodHints += `\nRelationship theme: ${needMap[userProfile.needType]}`;
       }
     }
 
@@ -101,22 +103,22 @@ export async function POST(req: Request) {
 Subject: A cat named "${catName}".
 ${catAppearance}
 
-Scene: The cat is ${ps.scene}.
-${contextScene}
+Default scene (use ONLY if no conversation context): The cat is ${ps.scene}.
+${sceneInspiration}
+${moodHints}
 
 Art style: ${stylePrompt}
-
 Color palette: ${ps.palette}
 Emotional mood: ${ps.mood}
 
 Composition requirements:
 - The cat is the main subject, occupying about 40-60% of the frame
-- Simple, uncluttered background with atmospheric depth
+- If a specific scene was extracted from the conversation, depict THAT scene
+- Simple, atmospheric background with emotional depth
 - Beautiful lighting that matches the mood
 - Square composition (1:1 aspect ratio)
 - Absolutely NO text, NO words, NO letters, NO numbers anywhere in the image
-- The overall feeling should make someone smile or feel deeply touched
-- This is a precious keepsake card, make it feel special and emotional`;
+- This is a precious keepsake card capturing a real relationship - make it deeply personal and emotional`;
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,

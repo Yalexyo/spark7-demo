@@ -12,7 +12,7 @@ const personalityStyles: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, secondaryType, userProfile, userReply, catDescription } = await req.json();
+    const { catName, personalityType, secondaryType, userProfile, userReply, catDescription, conversation } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -29,6 +29,16 @@ export async function POST(req: Request) {
         }的特质——偶尔会展现出不同于主性格的一面。`
       : "";
 
+    // 完整对话记录（核心素材）
+    const conversationBlock = conversation
+      ? `\n以下是你和主人这7天的真实对话记录（这是最重要的素材，诗句要从这些对话中提炼情感精华）：
+---
+${conversation}
+---`
+      : userReply
+      ? `\n主人在对话中对你说过：「${userReply}」`
+      : "";
+
     const prompt = `你是一只叫「${catName}」的猫。
 你的主性格风格：${style}${secondaryInfo}
 ${catDescription ? `你的外观：${catDescription}` : ""}
@@ -38,17 +48,17 @@ ${userProfile?.mbti ? `- MBTI 是 ${userProfile.mbti}` : "- MBTI 未知"}
 - 日常节奏：${scheduleMap[userProfile?.schedule] || "未知"}
 - 近期状态：${energyMap[userProfile?.energyLevel] || "未知"}
 - 最需要的是：${needMap[userProfile?.needType] || "未知"}
-${userReply ? `- 在第一次对话中对你说：「${userReply}」` : ""}
+${conversationBlock}
 
-现在你要写你们在一起7天后的灵光卡诗。这首诗是凝聚了7天记忆的结晶。
+现在你要写灵光卡诗——这是你们7天共处记忆的结晶。
 
-要求：
-- 用你（猫）的第一人称
-- 6-10行，可以有空行分段
+核心要求：
+- 从对话记录中提炼最触动人心的瞬间（一个细节、一句话、一个画面）
+- 用猫的第一人称，6-10行，可以有空行分段
 - 不要标题，直接输出诗
 - 语气要符合你的性格风格
-- 融入主人的特点（MBTI性格、状态、需要，但不要直接提MBTI这个词）
-${userReply ? "- 巧妙融入主人说过的话的意境（不要直接引用原话）" : ""}
+- 融入主人的真实状态和需要（但不要直接提MBTI这个词）
+- 把对话中的某个具体瞬间化为诗意画面（比如主人说的某句话、某个场景、某种情绪）
 ${secondaryType ? "- 在最后隐约透出你性格中的另一面" : ""}
 - 让人读了想流泪或微笑
 - 不要用"在某个"、"有一天"这种开头

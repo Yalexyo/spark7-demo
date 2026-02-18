@@ -34,6 +34,7 @@ export default function Home() {
   const [secondaryType, setSecondaryType] = useState<PersonalityType | null>(null);
   const [isPure, setIsPure] = useState(true);
   const [chatReply, setChatReply] = useState("");
+  const [chatHistory, setChatHistory] = useState<{from: string; text: string}[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>();
   const [catDescription, setCatDescription] = useState<string | null>(null);
   const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
@@ -122,6 +123,7 @@ export default function Home() {
             userProfile={userProfile}
             catDescription={catDescription}
             onReply={setChatReply}
+            onChatHistory={setChatHistory}
             onNext={() => setStage("timeline")}
           />
         )}
@@ -146,6 +148,7 @@ export default function Home() {
             secondaryType={secondaryType}
             userProfile={userProfile}
             chatReply={chatReply}
+            chatHistory={chatHistory}
             catDescription={catDescription}
             onNext={() => setStage("exit")}
           />
@@ -1014,6 +1017,7 @@ function ChatStage({
   userProfile,
   catDescription,
   onReply,
+  onChatHistory,
   onNext,
 }: {
   catName: string;
@@ -1021,6 +1025,7 @@ function ChatStage({
   userProfile?: UserProfile;
   catDescription?: string | null;
   onReply: (reply: string) => void;
+  onChatHistory: (history: {from: string; text: string}[]) => void;
   onNext: () => void;
 }) {
   const TOTAL_ROUNDS = 3;
@@ -1066,11 +1071,16 @@ function ChatStage({
         setPhase("user-reply");
       }, 1500);
     } else {
-      // 最后一轮 → 晚安
+      // 最后一轮 → 晚安 → 导出完整对话
       setTimeout(() => {
         setPhase("goodnight");
         setTimeout(() => {
-          setMessages((prev) => [...prev, { from: "cat", text: p.goodnight(catName) }]);
+          setMessages((prev) => {
+            const final: ChatMessage[] = [...prev, { from: "cat" as const, text: p.goodnight(catName) }];
+            // 导出完整对话历史（用户+猫双方）给灵光卡
+            onChatHistory(final.map(m => ({ from: m.from, text: m.text })));
+            return final;
+          });
           setPhase("done");
         }, 1500);
       }, 2000);
@@ -1394,6 +1404,7 @@ function CardStage({
   secondaryType,
   userProfile,
   chatReply,
+  chatHistory,
   catDescription,
   onNext,
 }: {
@@ -1403,6 +1414,7 @@ function CardStage({
   secondaryType: PersonalityType | null;
   userProfile?: UserProfile;
   chatReply?: string;
+  chatHistory?: {from: string; text: string}[];
   catDescription?: string | null;
   onNext: () => void;
 }) {
@@ -1438,30 +1450,30 @@ function CardStage({
     let imageDone = false;
     const checkDone = () => { if (poemDone && imageDone) setContentReady(true); };
 
-    // 诗句
+    // 构造完整对话摘要（用户+猫双方，给 poem 和 image 共用）
+    const conversationForApi = chatHistory && chatHistory.length > 0
+      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
+      : chatReply || "";
+
+    // 诗句（传完整对话）
     fetch("/api/poem", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         catName, personalityType, secondaryType, userProfile,
         userReply: chatReply, catDescription,
+        conversation: conversationForApi,
       }),
     }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
 
-    // C. 提取对话上下文给图片生成
-    const chatLines = (chatReply || "").split("\n").filter(Boolean);
-    const chatContext = chatLines.length > 0
-      ? chatLines[chatLines.length - 1] // 最后一轮用户说的话最走心
-      : undefined;
-
-    // 图片（带画风+上下文）
+    // 图片（传完整对话 + 画风）
     fetch("/api/card-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         catName, personalityType, catDescription,
         artStyle: style,
-        chatContext,
+        conversation: conversationForApi,
         userProfile,
       }),
     }).then(r => r.json()).then(d => {
