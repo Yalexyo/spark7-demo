@@ -1406,11 +1406,20 @@ function CardStage({
   catDescription?: string | null;
   onNext: () => void;
 }) {
-  const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
+  // B. 画风选择
+  const styleOptions = [
+    { key: "anime", label: "日漫", icon: "🎌" },
+    { key: "watercolor", label: "水彩", icon: "🎨" },
+    { key: "ink", label: "水墨", icon: "🖌️" },
+    { key: "storybook", label: "绘本", icon: "📖" },
+  ];
+  const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
+  const [selectedStyle, setSelectedStyle] = useState(defaultStyles[personalityType] || "watercolor");
+  const [phase, setPhase] = useState<"style-select" | "gathering" | "reveal" | "full">("style-select");
   const [saved, setSaved] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // AI 诗句生成（fallback 模板）
+  // AI 诗句 fallback
   const mbti = userProfile?.mbti;
   const fallbackBase = p.poem(catName, userProfile);
   const fallbackWithMbti = mbti && mbtiPoemOpener[mbti] ? mbtiPoemOpener[mbti] + fallbackBase : fallbackBase;
@@ -1420,67 +1429,60 @@ function CardStage({
   const [cardImage, setCardImage] = useState<string | null>(null);
   const [contentReady, setContentReady] = useState(false);
 
-  useEffect(() => {
+  // 用户确认风格后开始生成
+  const startGeneration = (style: string) => {
+    setSelectedStyle(style);
+    setPhase("gathering");
+
     let poemDone = false;
     let imageDone = false;
-    const checkDone = () => {
-      if (poemDone && imageDone) setContentReady(true);
-    };
+    const checkDone = () => { if (poemDone && imageDone) setContentReady(true); };
 
-    // 并行请求：诗句 + 图片
-    const fetchPoem = async () => {
-      try {
-        const res = await fetch("/api/poem", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            catName, personalityType, secondaryType, userProfile,
-            userReply: chatReply, catDescription,
-          }),
-        });
-        const data = await res.json();
-        if (data.poem) setPoem(data.poem);
-      } catch {}
-      poemDone = true;
-      checkDone();
-    };
+    // 诗句
+    fetch("/api/poem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catName, personalityType, secondaryType, userProfile,
+        userReply: chatReply, catDescription,
+      }),
+    }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
 
-    const fetchImage = async () => {
-      try {
-        const res = await fetch("/api/card-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            catName, personalityType, catDescription,
-          }),
-        });
-        const data = await res.json();
-        if (data.image && data.mimeType) {
-          setCardImage(`data:${data.mimeType};base64,${data.image}`);
-        }
-      } catch {}
-      imageDone = true;
-      checkDone();
-    };
+    // C. 提取对话上下文给图片生成
+    const chatLines = (chatReply || "").split("\n").filter(Boolean);
+    const chatContext = chatLines.length > 0
+      ? chatLines[chatLines.length - 1] // 最后一轮用户说的话最走心
+      : undefined;
 
-    fetchPoem();
-    fetchImage();
-  }, [catName, personalityType, secondaryType, userProfile, chatReply, catDescription]);
+    // 图片（带画风+上下文）
+    fetch("/api/card-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catName, personalityType, catDescription,
+        artStyle: style,
+        chatContext,
+        userProfile,
+      }),
+    }).then(r => r.json()).then(d => {
+      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
+    }).catch(() => {}).finally(() => { imageDone = true; checkDone(); });
+  };
 
   useEffect(() => {
-    // 最少 3 秒聚集动画，内容就绪后进入 reveal，最多等 10 秒
-    const minDelay = setTimeout(() => {
-      if (contentReady) setPhase("reveal");
-    }, 3000);
-    const maxDelay = setTimeout(() => setPhase("reveal"), 10000);
-    // 内容就绪且已过最小等待时间
-    const earlyReveal = contentReady ? setTimeout(() => setPhase("reveal"), 3000) : undefined;
-    return () => {
-      clearTimeout(minDelay);
-      clearTimeout(maxDelay);
-      if (earlyReveal) clearTimeout(earlyReveal);
-    };
-  }, [contentReady]);
+    if (phase !== "gathering") return;
+    const minDelay = setTimeout(() => { if (contentReady) setPhase("reveal"); }, 3000);
+    const maxDelay = setTimeout(() => setPhase("reveal"), 12000);
+    return () => { clearTimeout(minDelay); clearTimeout(maxDelay); };
+  }, [phase, contentReady]);
+
+  // contentReady 变化后如果已在 gathering 且超过 3 秒则 reveal
+  useEffect(() => {
+    if (contentReady && phase === "gathering") {
+      const t = setTimeout(() => setPhase("reveal"), 500);
+      return () => clearTimeout(t);
+    }
+  }, [contentReady, phase]);
 
   useEffect(() => {
     if (phase === "reveal") {
@@ -1498,6 +1500,69 @@ function CardStage({
       className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center overflow-y-auto hide-scrollbar"
       style={{ paddingTop: "env(safe-area-inset-top, 16px)", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
     >
+      {/* B. 画风选择 */}
+      {phase === "style-select" && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center w-full"
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-5xl mb-4"
+          >
+            {p.emoji}
+          </motion.div>
+          <h2 className="text-xl font-bold mb-2 text-white">选择灵光卡画风</h2>
+          <p className="text-sm text-white/40 mb-8">
+            为 {catName} 的故事挑一种风格
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            {styleOptions.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSelectedStyle(s.key)}
+                className="relative p-4 rounded-xl border transition-all active:scale-95"
+                style={{
+                  borderColor: selectedStyle === s.key ? p.color : "rgba(255,255,255,0.08)",
+                  background: selectedStyle === s.key
+                    ? `rgba(${p.colorRgb}, 0.12)`
+                    : "rgba(35,33,54,0.8)",
+                  boxShadow: selectedStyle === s.key
+                    ? `0 0 20px rgba(${p.colorRgb}, 0.15)`
+                    : "none",
+                }}
+              >
+                <span className="text-2xl mb-1 block">{s.icon}</span>
+                <span className={`text-sm font-medium ${selectedStyle === s.key ? "text-white" : "text-white/60"}`}>
+                  {s.label}
+                </span>
+                {selectedStyle === s.key && (
+                  <motion.div
+                    layoutId="style-check"
+                    className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                    style={{ background: p.color }}
+                  >
+                    ✓
+                  </motion.div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => startGeneration(selectedStyle)}
+            className="spark-btn w-full py-4 text-white"
+            style={{ background: "var(--brand-gradient)", boxShadow: "0 4px 24px var(--brand-glow)" }}
+          >
+            生成灵光卡 ✨
+          </button>
+        </motion.div>
+      )}
+
       {phase === "gathering" && (
         <motion.div
           initial={{ opacity: 0 }}
