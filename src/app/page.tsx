@@ -1417,42 +1417,70 @@ function CardStage({
   const fallbackPoem = secondaryType ? fallbackWithMbti + secondaryCoda[secondaryType] : fallbackWithMbti;
 
   const [poem, setPoem] = useState(fallbackPoem);
-  const [poemReady, setPoemReady] = useState(false);
+  const [cardImage, setCardImage] = useState<string | null>(null);
+  const [contentReady, setContentReady] = useState(false);
 
   useEffect(() => {
-    // 调 AI 生成诗句
+    let poemDone = false;
+    let imageDone = false;
+    const checkDone = () => {
+      if (poemDone && imageDone) setContentReady(true);
+    };
+
+    // 并行请求：诗句 + 图片
     const fetchPoem = async () => {
       try {
         const res = await fetch("/api/poem", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            catName,
-            personalityType,
-            secondaryType,
-            userProfile,
-            userReply: chatReply,
-            catDescription,
+            catName, personalityType, secondaryType, userProfile,
+            userReply: chatReply, catDescription,
           }),
         });
         const data = await res.json();
-        if (data.poem) {
-          setPoem(data.poem);
+        if (data.poem) setPoem(data.poem);
+      } catch {}
+      poemDone = true;
+      checkDone();
+    };
+
+    const fetchImage = async () => {
+      try {
+        const res = await fetch("/api/card-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            catName, personalityType, catDescription,
+          }),
+        });
+        const data = await res.json();
+        if (data.image && data.mimeType) {
+          setCardImage(`data:${data.mimeType};base64,${data.image}`);
         }
       } catch {}
-      setPoemReady(true);
+      imageDone = true;
+      checkDone();
     };
+
     fetchPoem();
-  }, [catName, personalityType, secondaryType, userProfile, chatReply]);
+    fetchImage();
+  }, [catName, personalityType, secondaryType, userProfile, chatReply, catDescription]);
 
   useEffect(() => {
-    // 等 AI 诗句就绪 或 最多 4 秒后进入 reveal
+    // 最少 3 秒聚集动画，内容就绪后进入 reveal，最多等 10 秒
     const minDelay = setTimeout(() => {
-      if (poemReady) setPhase("reveal");
-    }, 2500);
-    const maxDelay = setTimeout(() => setPhase("reveal"), 4000);
-    return () => { clearTimeout(minDelay); clearTimeout(maxDelay); };
-  }, [poemReady]);
+      if (contentReady) setPhase("reveal");
+    }, 3000);
+    const maxDelay = setTimeout(() => setPhase("reveal"), 10000);
+    // 内容就绪且已过最小等待时间
+    const earlyReveal = contentReady ? setTimeout(() => setPhase("reveal"), 3000) : undefined;
+    return () => {
+      clearTimeout(minDelay);
+      clearTimeout(maxDelay);
+      if (earlyReveal) clearTimeout(earlyReveal);
+    };
+  }, [contentReady]);
 
   useEffect(() => {
     if (phase === "reveal") {
@@ -1467,7 +1495,8 @@ function CardStage({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center"
+      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center overflow-y-auto hide-scrollbar"
+      style={{ paddingTop: "env(safe-area-inset-top, 16px)", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
     >
       {phase === "gathering" && (
         <motion.div
@@ -1538,36 +1567,66 @@ function CardStage({
               boxShadow: `0 0 80px rgba(${p.colorRgb}, 0.2), 0 0 30px rgba(${p.colorRgb}, 0.08), inset 0 1px 0 rgba(255,255,255,0.08)`,
             }}
           >
-            {/* 顶部渐变区 - 紧凑精致 */}
-            <div
-              className="relative overflow-hidden flex items-center justify-center"
-              style={{
-                height: "120px",
-                background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.45) 0%, rgba(${p.colorRgb}, 0.12) 50%, transparent 100%)`,
-              }}
-            >
-              <motion.span
-                animate={{ y: [0, -4, 0] }}
-                transition={{ duration: 3, repeat: Infinity }}
-                className="text-6xl"
-                style={{ opacity: 0.85 }}
-              >
-                {p.emoji}
-              </motion.span>
-              {/* 星光装饰 */}
-              {CARD_STARS.map((s, i) => (
-                <div
-                  key={i}
-                  className="absolute w-1 h-1 bg-white rounded-full"
-                  style={{
-                    top: `${s.top}%`,
-                    left: `${s.left}%`,
-                    opacity: s.opacity,
-                    animation: `twinkle ${s.duration}s infinite ${s.delay}s`,
-                  }}
+            {/* 顶部插画区 */}
+            {cardImage ? (
+              <div className="relative overflow-hidden" style={{ aspectRatio: "1/1", maxHeight: "320px" }}>
+                <motion.img
+                  src={cardImage}
+                  alt={`${catName}的灵光卡`}
+                  initial={{ opacity: 0, scale: 1.05 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.8 }}
+                  className="w-full h-full object-cover"
                 />
-              ))}
-            </div>
+                {/* 底部渐变融合 */}
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
+                  style={{ background: "linear-gradient(to top, rgba(26,24,38,1) 0%, transparent 100%)" }}
+                />
+                {/* 星光装饰 */}
+                {CARD_STARS.map((s, i) => (
+                  <div
+                    key={i}
+                    className="absolute w-1 h-1 bg-white rounded-full"
+                    style={{
+                      top: `${s.top}%`,
+                      left: `${s.left}%`,
+                      opacity: s.opacity,
+                      animation: `twinkle ${s.duration}s infinite ${s.delay}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                className="relative overflow-hidden flex items-center justify-center"
+                style={{
+                  height: "120px",
+                  background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.45) 0%, rgba(${p.colorRgb}, 0.12) 50%, transparent 100%)`,
+                }}
+              >
+                <motion.span
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="text-6xl"
+                  style={{ opacity: 0.85 }}
+                >
+                  {p.emoji}
+                </motion.span>
+                {CARD_STARS.map((s, i) => (
+                  <div
+                    key={i}
+                    className="absolute w-1 h-1 bg-white rounded-full"
+                    style={{
+                      top: `${s.top}%`,
+                      left: `${s.left}%`,
+                      opacity: s.opacity,
+                      animation: `twinkle ${s.duration}s infinite ${s.delay}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* 诗文区 */}
             <div className="px-6 pt-5 pb-4">
@@ -1578,8 +1637,8 @@ function CardStage({
                     initial={{ opacity: 0, x: -8 }}
                     animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
                     transition={{ delay: idx * 0.25, duration: 0.4 }}
-                    className={`text-[15px] leading-[2] ${
-                      line.trim() === "" ? "h-3" : "text-white/90"
+                    className={`text-[15px] leading-[1.9] ${
+                      line.trim() === "" ? "h-2" : "text-white/90"
                     }`}
                     style={{ fontFamily: "'Noto Serif SC', serif, Georgia" }}
                   >
