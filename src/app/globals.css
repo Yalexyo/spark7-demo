@@ -355,10 +355,10 @@ button, [role="button"], a {
     0 20px 60px rgba(0, 0, 0, 0.04);
 }
 
-/* 诗文排版 */
+/* 诗文排版 · 响应式 */
 .sparkle-poem-line {
   font-family: 'Noto Serif SC', serif, Georgia;
-  font-size: 15px;
+  font-size: clamp(13px, 2dvh, 15px);
   line-height: 1.85em;
   letter-spacing: 0.05em;
   color: #2D2A26;

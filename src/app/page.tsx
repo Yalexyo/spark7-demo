@@ -1620,17 +1620,18 @@ function CardStage({
           initial={{ opacity: 0, y: 40, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1, type: "spring", damping: 20 }}
-          className="w-full"
+          className="w-full flex flex-col"
+          style={{ maxHeight: "calc(100dvh - env(safe-area-inset-top, 16px) - env(safe-area-inset-bottom, 16px) - 32px)" }}
         >
           {/* ===== 灵光卡主体 · 纸张质感 ===== */}
           <div
             ref={cardRef}
-            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden"
+            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden flex-1 min-h-0 flex flex-col"
             style={{ border: "0.5px solid #E8E4DE" }}
           >
-            {/* 1. 插画区 45% · 非对称有机边缘 */}
+            {/* 1. 插画区 ~42% · 非对称有机边缘 · 弹性高度 */}
             {cardImage ? (
-              <div className="relative" style={{ minHeight: "200px", maxHeight: "340px" }}>
+              <div className="relative flex-shrink-0" style={{ height: "clamp(140px, 32dvh, 300px)" }}>
                 <motion.img
                   src={cardImage}
                   alt={`${catName}的灵光卡`}
@@ -1638,14 +1639,13 @@ function CardStage({
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 1.2 }}
                   className="w-full h-full object-cover"
-                  style={{ aspectRatio: "4/3" }}
                 />
                 {/* 有机曲线过渡：图片底部 → 纸色 */}
                 <svg
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
                   viewBox="0 0 400 40"
                   preserveAspectRatio="none"
-                  style={{ height: "40px" }}
+                  style={{ height: "clamp(24px, 4dvh, 40px)" }}
                 >
                   <path
                     d="M0,40 L0,20 C50,8 100,28 150,16 C200,4 250,24 300,12 C350,0 380,18 400,10 L400,40 Z"
@@ -1655,9 +1655,9 @@ function CardStage({
               </div>
             ) : (
               <div
-                className="relative flex items-center justify-center"
+                className="relative flex-shrink-0 flex items-center justify-center"
                 style={{
-                  height: "160px",
+                  height: "clamp(100px, 18dvh, 160px)",
                   background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.08) 0%, rgba(${p.colorRgb}, 0.03) 100%)`,
                 }}
               >
@@ -1673,7 +1673,7 @@ function CardStage({
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
                   viewBox="0 0 400 30"
                   preserveAspectRatio="none"
-                  style={{ height: "30px" }}
+                  style={{ height: "24px" }}
                 >
                   <path
                     d="M0,30 L0,15 C80,5 160,20 240,10 C320,0 370,12 400,8 L400,30 Z"
@@ -1683,57 +1683,58 @@ function CardStage({
               </div>
             )}
 
-            {/* 2. 内容区 55% · 文学排版 */}
-            <div className="relative z-10 px-7 pt-1 pb-0" style={{ background: "#FDFBF8" }}>
-              {/* 人格徽标 · 浮于图文交界 */}
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-                transition={{ delay: 0.2, duration: 0.6 }}
-                className="mb-5 flex items-center gap-2"
-              >
-                <span className="text-lg">{p.emoji}</span>
-                <span
-                  className="sparkle-meta"
-                  style={{ color: p.color, fontSize: "10px", letterSpacing: "0.12em" }}
+            {/* 2. 内容区 ~58% · 文学排版 · flex 弹性填充 */}
+            <div className="relative z-10 px-6 pt-1 flex-1 min-h-0 flex flex-col justify-between" style={{ background: "#FDFBF8" }}>
+              <div>
+                {/* 人格徽标 */}
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+                  transition={{ delay: 0.2, duration: 0.6 }}
+                  className="mb-3 flex items-center gap-2"
                 >
-                  {p.name}
-                </span>
-              </motion.div>
+                  <span className="text-base">{p.emoji}</span>
+                  <span
+                    className="sparkle-meta"
+                    style={{ color: p.color, fontSize: "10px", letterSpacing: "0.12em" }}
+                  >
+                    {p.name}
+                  </span>
+                </motion.div>
 
-              {/* 诗文 · 变奏式字重 */}
-              <div className="mb-8">
-                {lines.map((line, idx) => {
-                  const trimmed = line.trim();
-                  if (trimmed === "") return <div key={idx} className="h-4" />;
-                  // 变奏式字重：短句（≤6字）更坚定，长句更轻盈，最后一句加重
-                  const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
-                  const isShort = trimmed.length <= 6;
-                  const weightClass = isLast
-                    ? "sparkle-poem-line--bold"
-                    : isShort
-                    ? "sparkle-poem-line--regular"
-                    : "sparkle-poem-line--light";
-                  return (
-                    <motion.p
-                      key={idx}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
-                      transition={{ delay: 0.3 + idx * 0.2, duration: 0.5 }}
-                      className={`sparkle-poem-line ${weightClass}`}
-                    >
-                      {trimmed}
-                    </motion.p>
-                  );
-                })}
+                {/* 诗文 · 变奏式字重 */}
+                <div className="mb-4">
+                  {lines.map((line, idx) => {
+                    const trimmed = line.trim();
+                    if (trimmed === "") return <div key={idx} style={{ height: "clamp(6px, 1.2dvh, 14px)" }} />;
+                    const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
+                    const isShort = trimmed.length <= 6;
+                    const weightClass = isLast
+                      ? "sparkle-poem-line--bold"
+                      : isShort
+                      ? "sparkle-poem-line--regular"
+                      : "sparkle-poem-line--light";
+                    return (
+                      <motion.p
+                        key={idx}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
+                        transition={{ delay: 0.3 + idx * 0.2, duration: 0.5 }}
+                        className={`sparkle-poem-line ${weightClass}`}
+                      >
+                        {trimmed}
+                      </motion.p>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* 档案层 · 博物馆馆藏风 */}
+              {/* 档案层 · 博物馆馆藏风 + 仪式留白 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
-                className="pt-4 mb-6"
+                className="pt-3 pb-5"
                 style={{ borderTop: "0.5px solid #E8E4DE" }}
               >
                 <div className="flex items-baseline justify-between">
@@ -1744,7 +1745,7 @@ function CardStage({
                     {new Date().toLocaleDateString("en-CA")}
                   </div>
                 </div>
-                <div className="mt-2">
+                <div className="mt-1.5">
                   <span
                     className="text-[13px] font-medium"
                     style={{ color: "#3D3832", fontFamily: "'Noto Serif SC', serif" }}
@@ -1753,18 +1754,15 @@ function CardStage({
                   </span>
                 </div>
               </motion.div>
-
-              {/* 仪式感留白 · 底部 20% */}
-              <div className="h-8" />
             </div>
           </div>
 
-          {/* 5. 去干扰化按钮 · 线框极简 */}
+          {/* 按钮区 · 紧凑不占空间 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={phase === "full" ? { opacity: 1 } : {}}
             transition={{ delay: 0.3 + lines.length * 0.2 + 0.8 }}
-            className="mt-8 flex items-center justify-center gap-4"
+            className="flex-shrink-0 mt-4 flex items-center justify-center gap-4"
           >
             <button
               onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
@@ -1793,7 +1791,7 @@ function CardStage({
             animate={phase === "full" ? { opacity: 1 } : {}}
             transition={{ delay: 0.3 + lines.length * 0.2 + 1.2 }}
             onClick={onNext}
-            className="w-full mt-5 py-3 text-[13px]"
+            className="flex-shrink-0 w-full mt-2 py-2 text-[13px]"
             style={{ color: "#B8B0A4" }}
           >
             继续 →
