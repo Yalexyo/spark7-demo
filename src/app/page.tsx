@@ -1799,45 +1799,48 @@ function CardStage({
                   </span>
                 </div>
               </motion.div>
+
+              {/* 操作按钮 · 卡片内部 · 纸色背景上 */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={phase === "full" ? { opacity: 1 } : {}}
+                transition={{ delay: 0.3 + lines.length * 0.2 + 0.8 }}
+                className="flex items-center justify-center gap-3 pb-5"
+              >
+                <button
+                  onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
+                  className="sparkle-action-btn"
+                  style={{ borderColor: theme.divider, color: theme.metaColor }}
+                >
+                  {saved ? "已保存 ✓" : "保存"}
+                </button>
+                <button
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: `${catName}的灵光卡`,
+                        text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
+                        url: window.location.href,
+                      });
+                    }
+                  }}
+                  className="sparkle-action-btn"
+                  style={{ borderColor: theme.divider, color: theme.metaColor }}
+                >
+                  分享
+                </button>
+              </motion.div>
             </div>
           </div>
 
-          {/* 按钮区 · 紧凑不占空间 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={phase === "full" ? { opacity: 1 } : {}}
-            transition={{ delay: 0.3 + lines.length * 0.2 + 0.8 }}
-            className="flex-shrink-0 mt-4 flex items-center justify-center gap-4"
-          >
-            <button
-              onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
-              className="sparkle-action-btn"
-            >
-              {saved ? "已保存 ✓" : "保存"}
-            </button>
-            <button
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: `${catName}的灵光卡`,
-                    text: `我家${catName}是${p.name}！来测测你家猫的灵魂人格 ✨`,
-                    url: window.location.href,
-                  });
-                }
-              }}
-              className="sparkle-action-btn"
-            >
-              分享
-            </button>
-          </motion.div>
-
+          {/* 继续按钮 · 卡片外 · 暗色背景 */}
           <motion.button
             initial={{ opacity: 0 }}
             animate={phase === "full" ? { opacity: 1 } : {}}
             transition={{ delay: 0.3 + lines.length * 0.2 + 1.2 }}
             onClick={onNext}
-            className="flex-shrink-0 w-full mt-2 py-2 text-[13px]"
-            style={{ color: "#B8B0A4" }}
+            className="flex-shrink-0 w-full mt-4 py-2 text-[13px]"
+            style={{ color: "rgba(255,255,255,0.35)" }}
           >
             继续 →
           </motion.button>
