@@ -1273,11 +1273,17 @@ function TimelineStage({
 
   const [entries, setEntries] = useState(fallbackEntries);
   const [visibleCount, setVisibleCount] = useState(0);
+  const visibleCountRef = useRef(0);
+  useEffect(() => { visibleCountRef.current = visibleCount; }, [visibleCount]);
   const [showButton, setShowButton] = useState(false);
 
   // AI 生成个性化 7 天时间轴（调专用 /api/timeline）
+  const [aiRequested, setAiRequested] = useState(false);
   useEffect(() => {
+    if (aiRequested) return;
     if (!chatHistory || chatHistory.length === 0) return;
+    setAiRequested(true);
+
     fetch("/api/timeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1291,17 +1297,21 @@ function TimelineStage({
     })
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data.entries) && data.entries.length === 7) {
-          setEntries(data.entries.map((item: { day: number; text: string; emoji: string }, i: number) => ({
+        if (Array.isArray(data.entries) && data.entries.length >= 7) {
+          const aiEntries = data.entries.slice(0, 7).map((item: { day: number; text: string; emoji: string }, i: number) => ({
             day: item.day || i + 1,
-            text: item.text,
+            text: item.text || fallbackEntries[i]?.text || "",
             emoji: item.emoji || fallbackEntries[i]?.emoji || "✨",
-          })));
+          }));
+          // 替换尚未显示的条目 + 已显示的保留（避免跳变）
+          setEntries((prev) => prev.map((e, i) => i < visibleCountRef.current ? e : aiEntries[i]));
+          // 1秒后全部替换（用户注意力已在新条目上）
+          setTimeout(() => setEntries(aiEntries), 1000);
         }
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [chatHistory, aiRequested]);
 
   useEffect(() => {
     if (visibleCount < entries.length) {
@@ -1658,7 +1668,7 @@ function CardStage({
           initial={{ opacity: 0, y: 40, scale: 0.92 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1, type: "spring", damping: 20 }}
-          className="w-full"
+          className="w-full py-6"
         >
           {/* ===== 灵光卡主体 · 纸张质感 ===== */}
           <div
