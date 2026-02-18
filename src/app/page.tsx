@@ -1030,7 +1030,7 @@ function ChatStage({
 }) {
   const TOTAL_ROUNDS = 3;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [round, setRound] = useState(0); // 0=init, 1-3=conversation rounds
+  const [round, setRound] = useState(0);
   const [phase, setPhase] = useState<"cat-typing" | "user-reply" | "cat-responding" | "goodnight" | "done">("cat-typing");
   const [allReplies, setAllReplies] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1041,43 +1041,74 @@ function ChatStage({
     }
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, phase, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, phase, scrollToBottom]);
 
-  // 第一条消息
+  // 通用 AI 调用（支持不同消息类型）
+  const fetchChat = async (
+    type: "greeting" | "reply" | "followup" | "goodnight",
+    userMessage?: string,
+    extraHistory?: ChatMessage[],
+  ): Promise<string | null> => {
+    try {
+      const hist = (extraHistory || messages).map((m) => ({ role: m.from, text: m.text }));
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          catName,
+          personalityType: p.type,
+          type,
+          userMessage: userMessage || "",
+          userProfile,
+          catDescription,
+          conversationHistory: hist,
+        }),
+      });
+      const data = await res.json();
+      return data.reply || null;
+    } catch { return null; }
+  };
+
+  // 第一条消息 → AI 开场白
   useEffect(() => {
-    const t = setTimeout(() => {
-      setMessages([{ from: "cat", text: p.firstMessage(catName, userProfile) }]);
+    let cancelled = false;
+    (async () => {
+      const aiGreeting = await fetchChat("greeting");
+      if (cancelled) return;
+      const text = aiGreeting || p.firstMessage(catName, userProfile);
+      setMessages([{ from: "cat", text }]);
       setRound(1);
       setPhase("user-reply");
-    }, 2000);
-    return () => clearTimeout(t);
-  }, [catName, p, userProfile]);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 获取当前轮次的快捷回复
   const currentQuickReplies = round === 1 ? p.quickReplies : round === 2 ? p.quickRepliesR2 : p.quickRepliesR3;
 
-  // 发送猫的回应 + 后续引导
-  const addCatResponse = (text: string) => {
-    setMessages((prev) => [...prev, { from: "cat", text }]);
+  // 发送猫的回应 + AI 追问 + AI 晚安
+  const addCatResponseAndContinue = async (responseText: string, afterMessages: ChatMessage[]) => {
+    setMessages(afterMessages);
 
     if (round < TOTAL_ROUNDS) {
-      // 发送引导问题，进入下一轮
-      setTimeout(() => {
-        const followUp = round === 1 ? p.followUp1(catName) : p.followUp2(catName);
-        setMessages((prev) => [...prev, { from: "cat", text: followUp }]);
+      // AI 追问（基于当前对话生成下一个话题）
+      setTimeout(async () => {
+        const followUp = await fetchChat("followup", undefined, afterMessages);
+        const fallback = round === 1 ? p.followUp1(catName) : p.followUp2(catName);
+        const text = followUp || fallback;
+        setMessages((prev) => [...prev, { from: "cat", text }]);
         setRound((r) => r + 1);
         setPhase("user-reply");
-      }, 1500);
+      }, 1200);
     } else {
-      // 最后一轮 → 晚安 → 导出完整对话
+      // 最后一轮 → AI 晚安
       setTimeout(() => {
         setPhase("goodnight");
-        setTimeout(() => {
+        setTimeout(async () => {
+          const aiGoodnight = await fetchChat("goodnight", undefined, afterMessages);
+          const text = aiGoodnight || p.goodnight(catName);
           setMessages((prev) => {
-            const final: ChatMessage[] = [...prev, { from: "cat" as const, text: p.goodnight(catName) }];
-            // 导出完整对话历史（用户+猫双方）给灵光卡
+            const final: ChatMessage[] = [...prev, { from: "cat" as const, text }];
             onChatHistory(final.map(m => ({ from: m.from, text: m.text })));
             return final;
           });
@@ -1087,61 +1118,19 @@ function ChatStage({
     }
   };
 
-  // AI 回复（带对话历史上下文）
-  const fetchAiReply = async (reply: string): Promise<string | null> => {
-    try {
-      const history = messages.map((m) => ({ role: m.from, text: m.text }));
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          catName,
-          personalityType: p.type,
-          userMessage: reply,
-          userProfile,
-          catDescription,
-          conversationHistory: history,
-        }),
-      });
-      const data = await res.json();
-      return data.reply || null;
-    } catch {
-      return null;
-    }
-  };
-
-  // 快捷回复处理
-  const handleQuickReply = async (reply: string) => {
+  // 统一回复处理（快捷回复 & 自由输入 全部走 AI）
+  const handleReply = async (reply: string) => {
     const newReplies = [...allReplies, reply];
     setAllReplies(newReplies);
     onReply(newReplies.join("\n"));
-    setMessages((prev) => [...prev, { from: "user", text: reply }]);
+    const updatedMessages: ChatMessage[] = [...messages, { from: "user" as const, text: reply }];
+    setMessages(updatedMessages);
     setPhase("cat-responding");
 
-    if (round === 1) {
-      // 第一轮快捷回复用模板（秒回）
-      setTimeout(() => addCatResponse(p.secondMessage(catName, reply)), 1500);
-    } else {
-      // 2-3 轮快捷回复也走 AI（上下文更丰富）
-      const aiReply = await fetchAiReply(reply);
-      addCatResponse(aiReply || p.secondMessage(catName, reply));
-    }
-  };
-
-  // 自由输入处理（全部走 AI）
-  const handleFreeReply = async (reply: string) => {
-    const newReplies = [...allReplies, reply];
-    setAllReplies(newReplies);
-    onReply(newReplies.join("\n"));
-    setMessages((prev) => [...prev, { from: "user", text: reply }]);
-    setPhase("cat-responding");
-
-    const aiReply = await fetchAiReply(reply);
-    if (aiReply) {
-      addCatResponse(aiReply);
-    } else {
-      setTimeout(() => addCatResponse(p.secondMessage(catName, reply)), 1500);
-    }
+    const aiReply = await fetchChat("reply", reply, updatedMessages);
+    const text = aiReply || p.secondMessage(catName, reply);
+    const withResponse: ChatMessage[] = [...updatedMessages, { from: "cat" as const, text }];
+    await addCatResponseAndContinue(text, withResponse);
   };
 
   return (
@@ -1225,7 +1214,7 @@ function ChatStage({
               {currentQuickReplies.map((reply, idx) => (
                 <button
                   key={idx}
-                  onClick={() => handleQuickReply(reply)}
+                  onClick={() => handleReply(reply)}
                   className="px-4 py-2.5 bg-[#232136]/80 rounded-full border border-white/5 active:bg-white/10 transition-colors text-sm text-white/80"
                 >
                   {reply}
@@ -1233,7 +1222,7 @@ function ChatStage({
               ))}
             </div>
             {/* 自由输入 → AI 回复 */}
-            <FreeInput onSend={handleFreeReply} accentColor={p.color} />
+            <FreeInput onSend={handleReply} accentColor={p.color} />
           </motion.div>
         )}
 
