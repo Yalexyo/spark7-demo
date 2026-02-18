@@ -125,8 +125,10 @@ export default function Home() {
             key="card"
             catName={catName}
             personality={personality}
+            personalityType={personalityType}
             secondaryType={secondaryType}
             userProfile={userProfile}
+            chatReply={chatReply}
             onNext={() => setStage("exit")}
           />
         )}
@@ -967,29 +969,52 @@ function ChatStage({
     return () => clearTimeout(t);
   }, [catName, p, userProfile]);
 
-  const handleReply = (reply: string) => {
+  const continueAfterReply = (catReplyText: string) => {
+    setMessages((prev) => [...prev, { from: "cat", text: catReplyText }]);
+    setTimeout(() => {
+      setPhase("goodnight");
+      setTimeout(() => {
+        setMessages((prev) => [...prev, { from: "cat", text: p.goodnight(catName) }]);
+        setPhase("done");
+      }, 1500);
+    }, 2000);
+  };
+
+  // 快捷回复 → 模板回应
+  const handleQuickReply = (reply: string) => {
+    setSelectedReply(reply);
+    onReply(reply);
+    setMessages((prev) => [...prev, { from: "user", text: reply }]);
+    setPhase("typing2");
+    setTimeout(() => continueAfterReply(p.secondMessage(catName, reply)), 2000);
+  };
+
+  // 自由输入 → AI 回应（fallback 模板）
+  const handleFreeReply = async (reply: string) => {
     setSelectedReply(reply);
     onReply(reply);
     setMessages((prev) => [...prev, { from: "user", text: reply }]);
     setPhase("typing2");
 
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { from: "cat", text: p.secondMessage(catName, reply) },
-      ]);
-
-      setTimeout(() => {
-        setPhase("goodnight");
-        setTimeout(() => {
-          setMessages((prev) => [
-            ...prev,
-            { from: "cat", text: p.goodnight(catName) },
-          ]);
-          setPhase("done");
-        }, 1500);
-      }, 2000);
-    }, 2000);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          catName,
+          personalityType: p.type,
+          userMessage: reply,
+          userProfile,
+        }),
+      });
+      const data = await res.json();
+      if (data.reply) {
+        continueAfterReply(data.reply);
+        return;
+      }
+    } catch {}
+    // fallback
+    setTimeout(() => continueAfterReply(p.secondMessage(catName, reply)), 2000);
   };
 
   return (
@@ -1072,15 +1097,15 @@ function ChatStage({
               {p.quickReplies.map((reply, idx) => (
                 <button
                   key={idx}
-                  onClick={() => handleReply(reply)}
+                  onClick={() => handleQuickReply(reply)}
                   className="px-4 py-2.5 bg-[#232136]/80 rounded-full border border-white/5 active:bg-white/10 transition-colors text-sm text-white/80"
                 >
                   {reply}
                 </button>
               ))}
             </div>
-            {/* 自由输入 */}
-            <FreeInput onSend={handleReply} accentColor={p.color} />
+            {/* 自由输入 → AI 回复 */}
+            <FreeInput onSend={handleFreeReply} accentColor={p.color} />
           </motion.div>
         )}
 
@@ -1247,34 +1272,74 @@ function TimelineStage({
 function CardStage({
   catName,
   personality: p,
+  personalityType,
   secondaryType,
   userProfile,
+  chatReply,
   onNext,
 }: {
   catName: string;
   personality: Personality;
+  personalityType: PersonalityType;
   secondaryType: PersonalityType | null;
   userProfile?: UserProfile;
+  chatReply?: string;
   onNext: () => void;
 }) {
   const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
   const [saved, setSaved] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase("reveal"), 2500);
-    const t2 = setTimeout(() => setPhase("full"), 3500);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, []);
-
-  // MBTI 开头 + 主诗 + 副型尾声
+  // AI 诗句生成（fallback 模板）
   const mbti = userProfile?.mbti;
-  const basePoem = p.poem(catName, userProfile);
-  const withMbti = mbti && mbtiPoemOpener[mbti] ? mbtiPoemOpener[mbti] + basePoem : basePoem;
-  const poem = secondaryType ? withMbti + secondaryCoda[secondaryType] : withMbti;
+  const fallbackBase = p.poem(catName, userProfile);
+  const fallbackWithMbti = mbti && mbtiPoemOpener[mbti] ? mbtiPoemOpener[mbti] + fallbackBase : fallbackBase;
+  const fallbackPoem = secondaryType ? fallbackWithMbti + secondaryCoda[secondaryType] : fallbackWithMbti;
+
+  const [poem, setPoem] = useState(fallbackPoem);
+  const [poemReady, setPoemReady] = useState(false);
+
+  useEffect(() => {
+    // 调 AI 生成诗句
+    const fetchPoem = async () => {
+      try {
+        const res = await fetch("/api/poem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            catName,
+            personalityType,
+            secondaryType,
+            userProfile,
+            userReply: chatReply,
+          }),
+        });
+        const data = await res.json();
+        if (data.poem) {
+          setPoem(data.poem);
+        }
+      } catch {}
+      setPoemReady(true);
+    };
+    fetchPoem();
+  }, [catName, personalityType, secondaryType, userProfile, chatReply]);
+
+  useEffect(() => {
+    // 等 AI 诗句就绪 或 最多 4 秒后进入 reveal
+    const minDelay = setTimeout(() => {
+      if (poemReady) setPhase("reveal");
+    }, 2500);
+    const maxDelay = setTimeout(() => setPhase("reveal"), 4000);
+    return () => { clearTimeout(minDelay); clearTimeout(maxDelay); };
+  }, [poemReady]);
+
+  useEffect(() => {
+    if (phase === "reveal") {
+      const t = setTimeout(() => setPhase("full"), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
   const lines = poem.split("\n");
 
   return (
