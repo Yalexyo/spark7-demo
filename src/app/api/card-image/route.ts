@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
+// Vercel Serverless 超时设置（免费版最大 60 秒，图片生成需要 5-15 秒）
+export const maxDuration = 30;
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// 使用 exp 模型支持图片生成
-const MODEL = "gemini-2.0-flash-exp";
+// 图片生成专用模型
+const MODEL = "gemini-2.0-flash-exp-image-generation";
 
 const personalityScenes: Record<string, { scene: string; palette: string; mood: string }> = {
   storm: {
