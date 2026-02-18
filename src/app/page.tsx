@@ -945,9 +945,11 @@ function ChatStage({
   onReply: (reply: string) => void;
   onNext: () => void;
 }) {
+  const TOTAL_ROUNDS = 3;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [phase, setPhase] = useState<"typing1" | "reply" | "typing2" | "goodnight" | "done">("typing1");
-  const [selectedReply, setSelectedReply] = useState("");
+  const [round, setRound] = useState(0); // 0=init, 1-3=conversation rounds
+  const [phase, setPhase] = useState<"cat-typing" | "user-reply" | "cat-responding" | "goodnight" | "done">("cat-typing");
+  const [allReplies, setAllReplies] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -964,39 +966,43 @@ function ChatStage({
   useEffect(() => {
     const t = setTimeout(() => {
       setMessages([{ from: "cat", text: p.firstMessage(catName, userProfile) }]);
-      setPhase("reply");
+      setRound(1);
+      setPhase("user-reply");
     }, 2000);
     return () => clearTimeout(t);
   }, [catName, p, userProfile]);
 
-  const continueAfterReply = (catReplyText: string) => {
-    setMessages((prev) => [...prev, { from: "cat", text: catReplyText }]);
-    setTimeout(() => {
-      setPhase("goodnight");
+  // 获取当前轮次的快捷回复
+  const currentQuickReplies = round === 1 ? p.quickReplies : round === 2 ? p.quickRepliesR2 : p.quickRepliesR3;
+
+  // 发送猫的回应 + 后续引导
+  const addCatResponse = (text: string) => {
+    setMessages((prev) => [...prev, { from: "cat", text }]);
+
+    if (round < TOTAL_ROUNDS) {
+      // 发送引导问题，进入下一轮
       setTimeout(() => {
-        setMessages((prev) => [...prev, { from: "cat", text: p.goodnight(catName) }]);
-        setPhase("done");
+        const followUp = round === 1 ? p.followUp1(catName) : p.followUp2(catName);
+        setMessages((prev) => [...prev, { from: "cat", text: followUp }]);
+        setRound((r) => r + 1);
+        setPhase("user-reply");
       }, 1500);
-    }, 2000);
+    } else {
+      // 最后一轮 → 晚安
+      setTimeout(() => {
+        setPhase("goodnight");
+        setTimeout(() => {
+          setMessages((prev) => [...prev, { from: "cat", text: p.goodnight(catName) }]);
+          setPhase("done");
+        }, 1500);
+      }, 2000);
+    }
   };
 
-  // 快捷回复 → 模板回应
-  const handleQuickReply = (reply: string) => {
-    setSelectedReply(reply);
-    onReply(reply);
-    setMessages((prev) => [...prev, { from: "user", text: reply }]);
-    setPhase("typing2");
-    setTimeout(() => continueAfterReply(p.secondMessage(catName, reply)), 2000);
-  };
-
-  // 自由输入 → AI 回应（fallback 模板）
-  const handleFreeReply = async (reply: string) => {
-    setSelectedReply(reply);
-    onReply(reply);
-    setMessages((prev) => [...prev, { from: "user", text: reply }]);
-    setPhase("typing2");
-
+  // AI 回复（带对话历史上下文）
+  const fetchAiReply = async (reply: string): Promise<string | null> => {
     try {
+      const history = messages.map((m) => ({ role: m.from, text: m.text }));
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1005,16 +1011,48 @@ function ChatStage({
           personalityType: p.type,
           userMessage: reply,
           userProfile,
+          conversationHistory: history,
         }),
       });
       const data = await res.json();
-      if (data.reply) {
-        continueAfterReply(data.reply);
-        return;
-      }
-    } catch {}
-    // fallback
-    setTimeout(() => continueAfterReply(p.secondMessage(catName, reply)), 2000);
+      return data.reply || null;
+    } catch {
+      return null;
+    }
+  };
+
+  // 快捷回复处理
+  const handleQuickReply = async (reply: string) => {
+    const newReplies = [...allReplies, reply];
+    setAllReplies(newReplies);
+    onReply(newReplies.join("\n"));
+    setMessages((prev) => [...prev, { from: "user", text: reply }]);
+    setPhase("cat-responding");
+
+    if (round === 1) {
+      // 第一轮快捷回复用模板（秒回）
+      setTimeout(() => addCatResponse(p.secondMessage(catName, reply)), 1500);
+    } else {
+      // 2-3 轮快捷回复也走 AI（上下文更丰富）
+      const aiReply = await fetchAiReply(reply);
+      addCatResponse(aiReply || p.secondMessage(catName, reply));
+    }
+  };
+
+  // 自由输入处理（全部走 AI）
+  const handleFreeReply = async (reply: string) => {
+    const newReplies = [...allReplies, reply];
+    setAllReplies(newReplies);
+    onReply(newReplies.join("\n"));
+    setMessages((prev) => [...prev, { from: "user", text: reply }]);
+    setPhase("cat-responding");
+
+    const aiReply = await fetchAiReply(reply);
+    if (aiReply) {
+      addCatResponse(aiReply);
+    } else {
+      setTimeout(() => addCatResponse(p.secondMessage(catName, reply)), 1500);
+    }
   };
 
   return (
@@ -1069,7 +1107,7 @@ function ChatStage({
         ))}
 
         {/* 打字中动画 */}
-        {(phase === "typing1" || phase === "typing2" || phase === "goodnight") && (
+        {(phase === "cat-typing" || phase === "cat-responding" || phase === "goodnight") && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1086,15 +1124,16 @@ function ChatStage({
 
       {/* 快捷回复 / 自由输入 / 继续按钮 - 含安全区域 */}
       <div className="px-4 pt-3" style={{ borderTop: "1px solid var(--border-subtle)", paddingBottom: "calc(var(--safe-bottom) + var(--space-xl))" }}>
-        {phase === "reply" && (
+        {phase === "user-reply" && (
           <motion.div
+            key={`reply-${round}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-2"
           >
-            {/* 快捷回复 */}
+            {/* 快捷回复（按轮次切换） */}
             <div className="flex flex-wrap gap-2 mb-3">
-              {p.quickReplies.map((reply, idx) => (
+              {currentQuickReplies.map((reply, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleQuickReply(reply)}

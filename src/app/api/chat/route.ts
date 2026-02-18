@@ -12,27 +12,47 @@ const personalityPrompts: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, userMessage, userProfile } = await req.json();
+    const { catName, personalityType, userMessage, userProfile, conversationHistory } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
     const personalityGuide = personalityPrompts[personalityType] || personalityPrompts.sun;
+    const scheduleMap: Record<string, string> = { early: "朝九晚六", late: "经常加班", home: "常在家", irregular: "不固定" };
+    const energyMap: Record<string, string> = { full: "精力充沛", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" };
+    const needMap: Record<string, string> = { understand: "被理解", remind: "被提醒照顾自己", cheer: "被逗开心", quiet: "安静的陪伴" };
+
+    // 构建对话历史
+    const historyStr = (conversationHistory || [])
+      .map((m: { role: string; text: string }) => m.role === "cat" ? `猫：${m.text}` : `主人：${m.text}`)
+      .join("\n");
+
+    const round = (conversationHistory || []).filter((m: { role: string }) => m.role === "user").length + 1;
+    const depthHint = round === 1
+      ? "这是第一轮对话，轻松破冰即可。"
+      : round === 2
+      ? "这是第二轮对话，你们已经聊开了。可以更自然、更走心一点。"
+      : "这是第三轮对话，你们已经很熟了。可以说一些更深、更真实的话。让主人觉得你真的在乎。";
 
     const prompt = `你是一只叫「${catName}」的猫。
 ${personalityGuide}
 
 关于你的主人：
 ${userProfile?.mbti ? `- MBTI：${userProfile.mbti}` : ""}
-${userProfile?.schedule ? `- 日常节奏：${{ early: "朝九晚六", late: "经常加班", home: "常在家", irregular: "不固定" }[userProfile.schedule as string] || userProfile.schedule}` : ""}
-${userProfile?.energyLevel ? `- 近期状态：${{ full: "精力充沛", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" }[userProfile.energyLevel as string] || userProfile.energyLevel}` : ""}
+${userProfile?.schedule ? `- 日常节奏：${scheduleMap[userProfile.schedule] || userProfile.schedule}` : ""}
+${userProfile?.energyLevel ? `- 近期状态：${energyMap[userProfile.energyLevel] || userProfile.energyLevel}` : ""}
+${userProfile?.needType ? `- 最需要：${needMap[userProfile.needType] || userProfile.needType}` : ""}
 
+${historyStr ? `之前的对话：\n${historyStr}\n` : ""}
 你的主人刚对你说：「${userMessage}」
+
+${depthHint}
 
 用你的猫人格风格回复。要求：
 - 1-2句话，口语化，自然
 - 完全基于主人说的内容来回应，要让主人觉得"它听懂了"
+- 如果有之前的对话，要延续上下文，不要重复之前说过的话
 - 保持你的性格特点但不要过度表演
 - 不要加引号，直接说话
 - 只输出回复，不要任何解释`;
