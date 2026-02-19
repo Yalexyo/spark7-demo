@@ -1570,7 +1570,7 @@ function CardStage({
   useEffect(() => {
     if (phase !== "gathering") return;
     const minDelay = setTimeout(() => { if (contentReady) setPhase("reveal"); }, 3000);
-    const maxDelay = setTimeout(() => setPhase("reveal"), 12000);
+    const maxDelay = setTimeout(() => setPhase("reveal"), 25000);
     return () => { clearTimeout(minDelay); clearTimeout(maxDelay); };
   }, [phase, contentReady]);
 
