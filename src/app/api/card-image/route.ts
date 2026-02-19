@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export const runtime = "edge";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "gemini-2.0-flash-exp-image-generation";
+const MODEL = "gemini-2.5-flash-image";
 
 // ===== A. 按人格定画风 =====
 const artStylePrompts: Record<string, string> = {
@@ -152,7 +152,7 @@ COMPOSITION — This is about the relationship, not just the cat:
     }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

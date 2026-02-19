@@ -68,7 +68,7 @@ ${secondaryType ? "- 在最后隐约透出你性格中的另一面" : ""}
 - 只输出诗，不要任何解释或标点符号（句号、逗号都不要）`;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

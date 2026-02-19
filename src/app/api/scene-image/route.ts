@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export const runtime = "edge";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "gemini-2.0-flash-exp-image-generation";
+const MODEL = "gemini-2.5-flash-image";
 
 // 人格 → 画风
 const styleMap: Record<string, string> = {
@@ -64,7 +64,7 @@ RULES:
     }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
