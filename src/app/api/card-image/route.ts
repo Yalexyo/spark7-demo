@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Edge Function：免费版超时 30 秒
-export const runtime = "edge";
+// Serverless Function：免费版 maxDuration=60s（Edge 只有 30s 不够图片生成）
+export const maxDuration = 60;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-2.5-flash-image";
