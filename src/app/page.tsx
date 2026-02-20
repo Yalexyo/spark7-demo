@@ -1532,7 +1532,8 @@ function CardStage({
 
     let poemDone = false;
     let imageDone = false;
-    const checkDone = () => { if (poemDone && imageDone) setContentReady(true); };
+    // poem 完成就展示卡片（图片异步补位，不阻塞 reveal）
+    const checkDone = () => { if (poemDone) setContentReady(true); };
 
     // 构造完整对话摘要（用户+猫双方，给 poem 和 image 共用）
     const conversationForApi = chatHistory && chatHistory.length > 0
@@ -1758,14 +1759,24 @@ function CardStage({
                   background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.08) 0%, rgba(${p.colorRgb}, 0.03) 100%)`,
                 }}
               >
-                <motion.span
-                  animate={{ y: [0, -3, 0] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="text-5xl"
-                  style={{ opacity: 0.6 }}
-                >
-                  {p.emoji}
-                </motion.span>
+                <div className="flex flex-col items-center gap-2">
+                  <motion.span
+                    animate={{ y: [0, -3, 0], opacity: [0.4, 0.7, 0.4] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    className="text-5xl"
+                  >
+                    {p.emoji}
+                  </motion.span>
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0, 0.5, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, delay: 1 }}
+                    className="text-xs"
+                    style={{ color: `rgba(${p.colorRgb}, 0.6)` }}
+                  >
+                    画面生成中…
+                  </motion.span>
+                </div>
                 <svg
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
                   viewBox="0 0 400 30"
