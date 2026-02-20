@@ -1731,15 +1731,18 @@ function CardStage({
           transition={{ duration: 1, type: "spring", damping: 20 }}
           className="w-full py-6"
         >
-          {/* ===== 灵光卡主体 · 纸张质感 ===== */}
+          {/* ===== 灵光卡主体 · 叙述画卷 ===== */}
           <div
             ref={cardRef}
-            className="sparkle-card sparkle-card-shadow relative rounded-[12px] overflow-hidden flex flex-col"
-            style={{ border: `0.5px solid ${theme.divider}`, background: theme.accentGlow }}
+            className="sparkle-card relative rounded-[16px] overflow-hidden flex flex-col"
+            style={{
+              background: "#F9F8F6",
+              boxShadow: "0 2px 40px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.04)",
+            }}
           >
-            {/* 1. 插画区 ~42% · 非对称有机边缘 · 弹性高度 */}
+            {/* 1. 插画区 · 无界浸润 · 图文一体 */}
             {cardImage ? (
-              <div className="relative flex-shrink-0" style={{ height: "clamp(140px, 32dvh, 300px)" }}>
+              <div className="relative flex-shrink-0" style={{ height: "clamp(160px, 36dvh, 340px)" }}>
                 <motion.img
                   src={cardImage}
                   alt={`${catName}的灵光卡`}
@@ -1748,144 +1751,141 @@ function CardStage({
                   transition={{ duration: 1.2 }}
                   className="w-full h-full object-cover"
                 />
-                {/* 有机曲线过渡：图片底部 → 纸色 */}
-                <svg
+                {/* 无界渐变：图片底部深度溶解到纸色 */}
+                <div
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
-                  viewBox="0 0 400 40"
-                  preserveAspectRatio="none"
-                  style={{ height: "clamp(24px, 4dvh, 40px)" }}
-                >
-                  <path
-                    d="M0,40 L0,20 C50,8 100,28 150,16 C200,4 250,24 300,12 C350,0 380,18 400,10 L400,40 Z"
-                    fill={theme.waveFill}
-                  />
-                </svg>
-              </div>
-            ) : (
-              <div
-                className="relative flex-shrink-0 flex items-center justify-center"
-                style={{
-                  height: "clamp(100px, 18dvh, 160px)",
-                  background: `linear-gradient(135deg, rgba(${p.colorRgb}, 0.08) 0%, rgba(${p.colorRgb}, 0.03) 100%)`,
-                }}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <motion.span
-                    animate={{ y: [0, -3, 0], opacity: [0.4, 0.7, 0.4] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                    className="text-5xl"
-                  >
-                    {p.emoji}
-                  </motion.span>
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0, 0.5, 0] }}
-                    transition={{ duration: 2.5, repeat: Infinity, delay: 1 }}
-                    className="text-xs"
-                    style={{ color: `rgba(${p.colorRgb}, 0.6)` }}
-                  >
-                    画面生成中…
-                  </motion.span>
-                </div>
-                <svg
-                  className="absolute bottom-0 left-0 w-full pointer-events-none"
-                  viewBox="0 0 400 30"
-                  preserveAspectRatio="none"
-                  style={{ height: "24px" }}
-                >
-                  <path
-                    d="M0,30 L0,15 C80,5 160,20 240,10 C320,0 370,12 400,8 L400,30 Z"
-                    fill={theme.waveFill}
-                  />
-                </svg>
-              </div>
-            )}
-
-            {/* 2. 内容区 ~58% · 文学排版 · flex 弹性填充 */}
-            <div className="relative z-10 px-6 pt-1 flex flex-col" style={{ background: theme.paperBg }}>
-              <div>
-                {/* Chapter 标题 · 书籍章节页风格 */}
+                  style={{
+                    height: "50%",
+                    background: "linear-gradient(to bottom, transparent 0%, #F9F8F6 92%)",
+                  }}
+                />
+                {/* Chapter 标题浮于图片底部 */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-                  transition={{ delay: 0.1, duration: 0.8 }}
-                  className="mb-4 pt-2"
+                  initial={{ opacity: 0 }}
+                  animate={phase === "full" ? { opacity: 1 } : {}}
+                  transition={{ delay: 0.1, duration: 1 }}
+                  className="absolute bottom-4 left-6 right-6 z-10"
                 >
                   <div
-                    className="sparkle-meta mb-1"
-                    style={{ color: theme.metaColor, fontSize: "9px", letterSpacing: "0.25em" }}
+                    className="text-[9px] tracking-[0.3em] mb-1"
+                    style={{ color: "rgba(120,110,100,0.5)" }}
                   >
                     SPARK7
                   </div>
                   <div
-                    className="text-[18px] font-light tracking-wide"
-                    style={{ color: theme.titleColor, fontFamily: "'Noto Serif SC', serif" }}
+                    className="text-[20px] tracking-wide"
+                    style={{ color: theme.titleColor, fontFamily: "'Noto Serif SC', serif", fontWeight: 300 }}
                   >
-                    Chapter 1<span className="mx-2" style={{ opacity: 0.3 }}>·</span><span className="font-normal">初见</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-sm">{p.emoji}</span>
-                    <span
-                      className="sparkle-meta"
-                      style={{ color: p.color, fontSize: "9px", letterSpacing: "0.12em" }}
-                    >
-                      {p.name}
-                    </span>
+                    Chapter 1<span className="mx-2" style={{ opacity: 0.2 }}>·</span><span style={{ fontWeight: 400 }}>初见</span>
                   </div>
                 </motion.div>
-
-                {/* 诗文 · 变奏式字重 */}
-                <div className="mb-4">
-                  {lines.map((line, idx) => {
-                    const trimmed = line.trim();
-                    if (trimmed === "") return <div key={idx} style={{ height: "clamp(6px, 1.2dvh, 14px)" }} />;
-                    const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
-                    const isShort = trimmed.length <= 6;
-                    const poemColor = isLast ? theme.poemBold : isShort ? theme.poemRegular : theme.poemLight;
-                    const poemWeight = isLast ? 500 : isShort ? 400 : 300;
-                    return (
-                      <motion.p
-                        key={idx}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
-                        transition={{ delay: 0.3 + idx * 0.2, duration: 0.5 }}
-                        className="sparkle-poem-line"
-                        style={{ color: poemColor, fontWeight: poemWeight }}
-                      >
-                        {trimmed}
-                      </motion.p>
-                    );
-                  })}
-                </div>
               </div>
+            ) : (
+              <div
+                className="relative flex-shrink-0 flex flex-col items-center justify-center"
+                style={{
+                  height: "clamp(120px, 22dvh, 200px)",
+                  background: `linear-gradient(180deg, rgba(${p.colorRgb}, 0.06) 0%, #F9F8F6 100%)`,
+                }}
+              >
+                <motion.span
+                  animate={{ y: [0, -3, 0], opacity: [0.3, 0.6, 0.3] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="text-5xl"
+                >
+                  {p.emoji}
+                </motion.span>
+                <motion.span
+                  animate={{ opacity: [0, 0.4, 0] }}
+                  transition={{ duration: 2.5, repeat: Infinity, delay: 1 }}
+                  className="text-xs mt-2"
+                  style={{ color: `rgba(${p.colorRgb}, 0.5)` }}
+                >
+                  画面生成中…
+                </motion.span>
+              </div>
+            )}
 
-              {/* 关系进度 · 微妙的视觉暗示 */}
+            {/* 2. 内容区 · 杂志化排版 · 呼吸感 */}
+            <div className="relative z-10 px-7 flex flex-col" style={{ background: "#F9F8F6" }}>
+              {/* 人格标签 · 极简 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
-                transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
-                className="pt-4 pb-2"
-                style={{ borderTop: `0.5px solid ${theme.divider}` }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+                className="flex items-center gap-1.5 mb-5"
               >
-                {/* 五章进度点 */}
-                <div className="flex items-center justify-center gap-3 mb-3">
+                <span className="text-xs">{p.emoji}</span>
+                <span
+                  className="text-[9px] tracking-[0.15em]"
+                  style={{ color: p.color }}
+                >
+                  {p.name}
+                </span>
+              </motion.div>
+
+              {/* 诗文 · 变奏排版 · 杂志呼吸感 */}
+              <div className="mb-6">
+                {lines.map((line, idx) => {
+                  const trimmed = line.trim();
+                  if (trimmed === "") return <div key={idx} style={{ height: "clamp(10px, 2dvh, 18px)" }} />;
+                  const isFirst = idx === 0 || (idx === 1 && lines[0].trim() === "");
+                  const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
+                  const isShort = trimmed.length <= 6;
+                  // 杂志化字重：首句+短句加粗（猫的心理波动），长句轻盈，末句（伏笔）中等
+                  const poemWeight = isFirst || isShort ? 500 : isLast ? 450 : 300;
+                  const poemColor = isFirst || isShort ? theme.poemBold : isLast ? theme.poemRegular : theme.poemLight;
+                  const fontSize = isFirst ? "clamp(17px, 2.2dvh, 22px)" : "clamp(15px, 2dvh, 19px)";
+                  return (
+                    <motion.p
+                      key={idx}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={phase === "full" ? { opacity: 1, x: 0 } : {}}
+                      transition={{ delay: 0.3 + idx * 0.18, duration: 0.5 }}
+                      style={{
+                        color: poemColor,
+                        fontWeight: poemWeight,
+                        fontSize,
+                        lineHeight: 2.2,
+                        letterSpacing: "0.08em",
+                        fontFamily: "'Noto Serif SC', serif",
+                      }}
+                    >
+                      {trimmed}
+                    </motion.p>
+                  );
+                })}
+              </div>
+
+              {/* 灵光路径 · 去功能化进度 · 星图散落 */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={phase === "full" ? { opacity: 1 } : {}}
+                transition={{ delay: 0.3 + lines.length * 0.18 + 0.3 }}
+                className="mb-4"
+              >
+                {/* 极细底线 + 星光点 */}
+                <div className="relative flex items-center justify-between px-2" style={{ height: 28 }}>
+                  {/* 底线 */}
+                  <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 h-px" style={{ background: `rgba(${p.colorRgb}, 0.08)` }} />
+                  {/* 节点 */}
                   {["初见", "试探", "信任", "理解", "驯化"].map((s, i) => (
-                    <div key={s} className="flex flex-col items-center gap-1">
+                    <div key={s} className="relative flex flex-col items-center z-10">
                       <div
-                        className="rounded-full transition-all"
+                        className="rounded-full"
                         style={{
-                          width: i === 0 ? 8 : 5,
-                          height: i === 0 ? 8 : 5,
-                          backgroundColor: i === 0 ? p.color : `rgba(${p.colorRgb}, 0.15)`,
-                          boxShadow: i === 0 ? `0 0 8px rgba(${p.colorRgb}, 0.4)` : "none",
+                          width: i === 0 ? 6 : 3,
+                          height: i === 0 ? 6 : 3,
+                          backgroundColor: i === 0 ? p.color : `rgba(${p.colorRgb}, 0.12)`,
+                          boxShadow: i === 0 ? `0 0 6px rgba(${p.colorRgb}, 0.5), 0 0 12px rgba(${p.colorRgb}, 0.2)` : "none",
                         }}
                       />
                       <span
-                        className="sparkle-meta"
+                        className="absolute top-4 whitespace-nowrap"
                         style={{
                           fontSize: "7px",
-                          color: i === 0 ? p.color : theme.metaColor,
-                          opacity: i === 0 ? 1 : 0.4,
+                          letterSpacing: "0.1em",
+                          color: i === 0 ? p.color : "rgba(160,155,145,0.4)",
                         }}
                       >
                         {s}
@@ -1893,54 +1893,64 @@ function CardStage({
                     </div>
                   ))}
                 </div>
-
-                <div className="flex items-baseline justify-between mb-1">
-                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
-                    {new Date().toLocaleDateString("en-CA")}
-                  </div>
-                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
-                    {catName}的第一张灵光
-                  </div>
-                </div>
               </motion.div>
 
-              {/* 叙事钩子 · "下一章预告" · 核心留存机制 */}
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-                transition={{ delay: 0.3 + lines.length * 0.2 + 0.8, duration: 0.6 }}
-                className="pb-4 text-center"
-              >
-                <div
-                  className="inline-block px-4 py-2.5 rounded-lg"
-                  style={{ background: `rgba(${p.colorRgb}, 0.06)` }}
-                >
-                  <div
-                    className="text-[10px] mb-1 tracking-widest"
-                    style={{ color: theme.metaColor, opacity: 0.6 }}
-                  >
-                    CHAPTER 2 预告
-                  </div>
-                  <div
-                    className="text-[12px] leading-relaxed"
-                    style={{ color: theme.poemRegular, fontFamily: "'Noto Serif SC', serif" }}
-                  >
-                    它会靠近你吗？<br />还是假装路过？
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* 操作按钮 · 卡片内部 · 纸色背景上 */}
+              {/* 底部信息行 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
-                transition={{ delay: 0.3 + lines.length * 0.2 + 0.8 }}
-                className="flex items-center justify-center gap-3 pb-5"
+                transition={{ delay: 0.3 + lines.length * 0.18 + 0.5 }}
+                className="flex items-baseline justify-between mt-3 mb-3"
+              >
+                <span className="text-[9px] tracking-wider" style={{ color: "rgba(160,155,145,0.5)" }}>
+                  {new Date().toLocaleDateString("en-CA")}
+                </span>
+                <span className="text-[9px] tracking-wider" style={{ color: "rgba(160,155,145,0.5)" }}>
+                  {catName}的第一张灵光
+                </span>
+              </motion.div>
+
+              {/* 下一章预告 · 精致注脚 · 虚线勾勒 */}
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.3 + lines.length * 0.18 + 0.7, duration: 0.6 }}
+                className="mb-5 mx-2 py-3 px-4 text-center"
+                style={{
+                  border: `0.5px dashed rgba(${p.colorRgb}, 0.15)`,
+                  borderRadius: 8,
+                  background: "rgba(249,248,246,0.5)",
+                }}
+              >
+                <div
+                  className="text-[8px] mb-1.5 tracking-[0.2em]"
+                  style={{ color: "rgba(160,155,145,0.45)" }}
+                >
+                  CHAPTER 2
+                </div>
+                <div
+                  className="text-[12px] leading-relaxed italic"
+                  style={{ color: "rgba(120,110,100,0.6)", fontFamily: "'Noto Serif SC', serif" }}
+                >
+                  它会靠近你吗？还是假装路过？
+                </div>
+              </motion.div>
+
+              {/* 操作按钮 · 力量感 CTA */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={phase === "full" ? { opacity: 1 } : {}}
+                transition={{ delay: 0.3 + lines.length * 0.18 + 0.9 }}
+                className="flex items-center justify-center gap-3 pb-6"
               >
                 <button
                   onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
-                  className="sparkle-action-btn"
-                  style={{ borderColor: theme.divider, color: theme.metaColor }}
+                  className="flex-1 py-2.5 text-[12px] tracking-wider rounded-lg transition-colors"
+                  style={{
+                    border: "0.5px solid rgba(0,0,0,0.08)",
+                    color: "rgba(120,110,100,0.6)",
+                    background: "transparent",
+                  }}
                 >
                   {saved ? "已保存 ✓" : "保存"}
                 </button>
@@ -1954,10 +1964,13 @@ function CardStage({
                       });
                     }
                   }}
-                  className="sparkle-action-btn"
-                  style={{ borderColor: theme.divider, color: theme.metaColor }}
+                  className="flex-1 py-2.5 text-[12px] tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                  style={{
+                    background: theme.titleColor,
+                    color: "#F9F8F6",
+                  }}
                 >
-                  分享
+                  分享 <span style={{ fontSize: 10 }}>→</span>
                 </button>
               </motion.div>
             </div>
