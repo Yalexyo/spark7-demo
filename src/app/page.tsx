@@ -1731,13 +1731,13 @@ function CardStage({
           transition={{ duration: 1, type: "spring", damping: 20 }}
           className="w-full py-6"
         >
-          {/* ===== 灵光卡主体 · 叙述画卷 ===== */}
+          {/* ===== 灵光卡主体 · 叙述画卷 · 主副人格色调 ===== */}
           <div
             ref={cardRef}
             className="sparkle-card relative rounded-[16px] overflow-hidden flex flex-col"
             style={{
-              background: "#F9F8F6",
-              boxShadow: "0 2px 40px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.04)",
+              background: theme.paperBg,
+              boxShadow: `0 2px 40px ${theme.accentGlow}, 0 0 0 0.5px ${theme.divider}`,
             }}
           >
             {/* 1. 插画区 · 无界浸润 · 图文一体 */}
@@ -1751,14 +1751,24 @@ function CardStage({
                   transition={{ duration: 1.2 }}
                   className="w-full h-full object-cover"
                 />
-                {/* 无界渐变：图片底部深度溶解到纸色 */}
+                {/* 无界渐变：图片底部溶解到人格纸色 */}
                 <div
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
                   style={{
                     height: "50%",
-                    background: "linear-gradient(to bottom, transparent 0%, #F9F8F6 92%)",
+                    background: `linear-gradient(to bottom, transparent 0%, ${theme.paperBg} 92%)`,
                   }}
                 />
+                {/* 副人格微光：一道极淡的副色光晕浮于渐变区 */}
+                {secondaryType && secondaryType !== personalityType && (
+                  <div
+                    className="absolute bottom-0 left-0 w-full pointer-events-none"
+                    style={{
+                      height: "30%",
+                      background: `radial-gradient(ellipse 80% 100% at 70% 100%, rgba(${personalities[secondaryType].colorRgb}, 0.06) 0%, transparent 70%)`,
+                    }}
+                  />
+                )}
                 {/* Chapter 标题浮于图片底部 */}
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -1768,7 +1778,7 @@ function CardStage({
                 >
                   <div
                     className="text-[9px] tracking-[0.3em] mb-1"
-                    style={{ color: "rgba(120,110,100,0.5)" }}
+                    style={{ color: theme.metaColor, opacity: 0.6 }}
                   >
                     SPARK7
                   </div>
@@ -1785,7 +1795,7 @@ function CardStage({
                 className="relative flex-shrink-0 flex flex-col items-center justify-center"
                 style={{
                   height: "clamp(120px, 22dvh, 200px)",
-                  background: `linear-gradient(180deg, rgba(${p.colorRgb}, 0.06) 0%, #F9F8F6 100%)`,
+                  background: `linear-gradient(180deg, rgba(${p.colorRgb}, 0.06) 0%, ${theme.paperBg} 100%)`,
                 }}
               >
                 <motion.span
@@ -1806,9 +1816,9 @@ function CardStage({
               </div>
             )}
 
-            {/* 2. 内容区 · 杂志化排版 · 呼吸感 */}
-            <div className="relative z-10 px-7 flex flex-col" style={{ background: "#F9F8F6" }}>
-              {/* 人格标签 · 极简 */}
+            {/* 2. 内容区 · 杂志化排版 · 人格色调呼吸 */}
+            <div className="relative z-10 px-7 flex flex-col" style={{ background: theme.paperBg }}>
+              {/* 人格标签 · 主+副 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
@@ -1822,6 +1832,19 @@ function CardStage({
                 >
                   {p.name}
                 </span>
+                {secondaryType && secondaryType !== personalityType && (() => {
+                  const s = personalities[secondaryType];
+                  return (<>
+                    <span className="text-[8px]" style={{ color: theme.metaColor, opacity: 0.3 }}>×</span>
+                    <span className="text-xs">{s.emoji}</span>
+                    <span
+                      className="text-[8px] tracking-[0.1em]"
+                      style={{ color: s.color, opacity: 0.6 }}
+                    >
+                      {s.name}
+                    </span>
+                  </>);
+                })()}
               </motion.div>
 
               {/* 诗文 · 变奏排版 · 杂志呼吸感 */}
@@ -1832,7 +1855,6 @@ function CardStage({
                   const isFirst = idx === 0 || (idx === 1 && lines[0].trim() === "");
                   const isLast = idx === lines.length - 1 || (idx === lines.length - 2 && lines[lines.length - 1].trim() === "");
                   const isShort = trimmed.length <= 6;
-                  // 杂志化字重：首句+短句加粗（猫的心理波动），长句轻盈，末句（伏笔）中等
                   const poemWeight = isFirst || isShort ? 500 : isLast ? 450 : 300;
                   const poemColor = isFirst || isShort ? theme.poemBold : isLast ? theme.poemRegular : theme.poemLight;
                   const fontSize = isFirst ? "clamp(17px, 2.2dvh, 22px)" : "clamp(15px, 2dvh, 19px)";
@@ -1857,41 +1879,54 @@ function CardStage({
                 })}
               </div>
 
-              {/* 灵光路径 · 去功能化进度 · 星图散落 */}
+              {/* 灵光路径 · 星图散落 · 主色节点+副色尾光 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.18 + 0.3 }}
                 className="mb-4"
               >
-                {/* 极细底线 + 星光点 */}
                 <div className="relative flex items-center justify-between px-2" style={{ height: 28 }}>
-                  {/* 底线 */}
-                  <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 h-px" style={{ background: `rgba(${p.colorRgb}, 0.08)` }} />
+                  {/* 底线：主色极淡 */}
+                  <div
+                    className="absolute left-2 right-2 top-1/2 -translate-y-1/2 h-px"
+                    style={{ background: theme.divider }}
+                  />
                   {/* 节点 */}
-                  {["初见", "试探", "信任", "理解", "驯化"].map((s, i) => (
-                    <div key={s} className="relative flex flex-col items-center z-10">
-                      <div
-                        className="rounded-full"
-                        style={{
-                          width: i === 0 ? 6 : 3,
-                          height: i === 0 ? 6 : 3,
-                          backgroundColor: i === 0 ? p.color : `rgba(${p.colorRgb}, 0.12)`,
-                          boxShadow: i === 0 ? `0 0 6px rgba(${p.colorRgb}, 0.5), 0 0 12px rgba(${p.colorRgb}, 0.2)` : "none",
-                        }}
-                      />
-                      <span
-                        className="absolute top-4 whitespace-nowrap"
-                        style={{
-                          fontSize: "7px",
-                          letterSpacing: "0.1em",
-                          color: i === 0 ? p.color : "rgba(160,155,145,0.4)",
-                        }}
-                      >
-                        {s}
-                      </span>
-                    </div>
-                  ))}
+                  {["初见", "试探", "信任", "理解", "驯化"].map((s, i) => {
+                    // 最后一个节点用副人格色（暗示旅程终点有变化）
+                    const isEnd = i === 4 && secondaryType && secondaryType !== personalityType;
+                    const dotColor = i === 0 ? p.color : isEnd ? personalities[secondaryType!].color : `rgba(${p.colorRgb}, 0.12)`;
+                    const labelColor = i === 0 ? p.color : isEnd ? personalities[secondaryType!].color : theme.metaColor;
+                    return (
+                      <div key={s} className="relative flex flex-col items-center z-10">
+                        <div
+                          className="rounded-full"
+                          style={{
+                            width: i === 0 ? 6 : isEnd ? 4 : 3,
+                            height: i === 0 ? 6 : isEnd ? 4 : 3,
+                            backgroundColor: dotColor,
+                            boxShadow: i === 0
+                              ? `0 0 6px rgba(${p.colorRgb}, 0.5), 0 0 12px rgba(${p.colorRgb}, 0.2)`
+                              : isEnd
+                                ? `0 0 4px ${personalities[secondaryType!].color}40`
+                                : "none",
+                          }}
+                        />
+                        <span
+                          className="absolute top-4 whitespace-nowrap"
+                          style={{
+                            fontSize: "7px",
+                            letterSpacing: "0.1em",
+                            color: labelColor,
+                            opacity: i === 0 || isEnd ? 1 : 0.4,
+                          }}
+                        >
+                          {s}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </motion.div>
 
@@ -1902,41 +1937,41 @@ function CardStage({
                 transition={{ delay: 0.3 + lines.length * 0.18 + 0.5 }}
                 className="flex items-baseline justify-between mt-3 mb-3"
               >
-                <span className="text-[9px] tracking-wider" style={{ color: "rgba(160,155,145,0.5)" }}>
+                <span className="text-[9px] tracking-wider" style={{ color: theme.metaColor, opacity: 0.5 }}>
                   {new Date().toLocaleDateString("en-CA")}
                 </span>
-                <span className="text-[9px] tracking-wider" style={{ color: "rgba(160,155,145,0.5)" }}>
+                <span className="text-[9px] tracking-wider" style={{ color: theme.metaColor, opacity: 0.5 }}>
                   {catName}的第一张灵光
                 </span>
               </motion.div>
 
-              {/* 下一章预告 · 精致注脚 · 虚线勾勒 */}
+              {/* 下一章预告 · 精致注脚 · 副人格色虚线 */}
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.18 + 0.7, duration: 0.6 }}
                 className="mb-5 mx-2 py-3 px-4 text-center"
                 style={{
-                  border: `0.5px dashed rgba(${p.colorRgb}, 0.15)`,
+                  border: `0.5px dashed ${theme.divider}`,
                   borderRadius: 8,
-                  background: "rgba(249,248,246,0.5)",
+                  background: theme.accentGlow,
                 }}
               >
                 <div
                   className="text-[8px] mb-1.5 tracking-[0.2em]"
-                  style={{ color: "rgba(160,155,145,0.45)" }}
+                  style={{ color: theme.metaColor, opacity: 0.5 }}
                 >
                   CHAPTER 2
                 </div>
                 <div
                   className="text-[12px] leading-relaxed italic"
-                  style={{ color: "rgba(120,110,100,0.6)", fontFamily: "'Noto Serif SC', serif" }}
+                  style={{ color: theme.poemLight, fontFamily: "'Noto Serif SC', serif" }}
                 >
                   它会靠近你吗？还是假装路过？
                 </div>
               </motion.div>
 
-              {/* 操作按钮 · 力量感 CTA */}
+              {/* 操作按钮 · 主人格色 CTA */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
@@ -1947,8 +1982,8 @@ function CardStage({
                   onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
                   className="flex-1 py-2.5 text-[12px] tracking-wider rounded-lg transition-colors"
                   style={{
-                    border: "0.5px solid rgba(0,0,0,0.08)",
-                    color: "rgba(120,110,100,0.6)",
+                    border: `0.5px solid ${theme.divider}`,
+                    color: theme.metaColor,
                     background: "transparent",
                   }}
                 >
@@ -1967,7 +2002,7 @@ function CardStage({
                   className="flex-1 py-2.5 text-[12px] tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                   style={{
                     background: theme.titleColor,
-                    color: "#F9F8F6",
+                    color: theme.paperBg,
                   }}
                 >
                   分享 <span style={{ fontSize: 10 }}>→</span>

@@ -123,15 +123,25 @@ export const cardThemes: Record<PersonalityType, CardTheme> = {
   },
 };
 
-// 副人格混合：给卡片增加一抹副人格的色彩
+// 副人格混合：主人格定基调，副人格渗透氛围
+// 混合策略：paperBg/waveFill 20% 副色渗透，divider 30%，accentGlow 用副色，诗文色不动（保证可读性）
+function blendHex(a: string, b: string, ratio: number): string {
+  const pa = [parseInt(a.slice(1,3),16), parseInt(a.slice(3,5),16), parseInt(a.slice(5,7),16)];
+  const pb = [parseInt(b.slice(1,3),16), parseInt(b.slice(3,5),16), parseInt(b.slice(5,7),16)];
+  const mix = pa.map((v, i) => Math.round(v * (1 - ratio) + pb[i] * ratio));
+  return `#${mix.map(v => v.toString(16).padStart(2, "0")).join("")}`;
+}
 export function blendCardTheme(primary: PersonalityType, secondary: PersonalityType | null): CardTheme {
   const base = cardThemes[primary];
   if (!secondary || secondary === primary) return base;
-  // 副人格只影响 divider 和 accentGlow（轻微渗透，不喧宾夺主）
   const sec = cardThemes[secondary];
   return {
     ...base,
-    accentGlow: sec.accentGlow,  // 副人格的微光铺底
+    paperBg: blendHex(base.paperBg, sec.paperBg, 0.2),
+    waveFill: blendHex(base.waveFill, sec.waveFill, 0.2),
+    divider: blendHex(base.divider, sec.divider, 0.3),
+    metaColor: blendHex(base.metaColor, sec.metaColor, 0.15),
+    accentGlow: sec.accentGlow,
   };
 }
 
