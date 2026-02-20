@@ -829,7 +829,7 @@ function ProfileStage({
         </motion.div>
       )}
 
-      {/* MBTI */}
+      {/* MBTI · 场景化选择 */}
       {phase === "mbti" && !catResponse && (
         <motion.div
           initial={{ opacity: 0, x: 60 }}
@@ -841,27 +841,35 @@ function ProfileStage({
           </div>
           <div className="bg-[#232136]/80 backdrop-blur-xl p-5 rounded-2xl border border-white/5 mb-6">
             <p className="text-white/80 text-[15px] leading-relaxed">
-              听说人类有个叫 MBTI 的东西？你知道你的吗？
+              让我猜猜你是什么样的人？
             </p>
           </div>
 
           <div className="space-y-4 mb-6">
-            {[["I", "E"], ["N", "S"], ["T", "F"], ["J", "P"]].map((pair, idx) => (
-              <div key={idx} className="flex gap-3">
-                {pair.map((letter) => (
-                  <button
-                    key={letter}
-                    onClick={() => toggleMbtiLetter(idx, letter)}
-                    className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
-                      mbtiLetters[idx] === letter
-                        ? "text-white scale-105"
-                        : "bg-[#232136]/80 text-white/50 border border-white/5"
-                    }`}
-                    style={mbtiLetters[idx] === letter ? { backgroundColor: p.color } : {}}
-                  >
-                    {letter}
-                  </button>
-                ))}
+            {([
+              { label: "社交", a: { letter: "E", text: "派对动物 🎉" }, b: { letter: "I", text: "独处充电 🔋" } },
+              { label: "感知", a: { letter: "S", text: "看得见摸得着 👀" }, b: { letter: "N", text: "脑中有宇宙 🌌" } },
+              { label: "决策", a: { letter: "T", text: "逻辑至上 🧠" }, b: { letter: "F", text: "感觉先行 ❤️" } },
+              { label: "生活", a: { letter: "J", text: "计划控 📋" }, b: { letter: "P", text: "随缘大师 🎲" } },
+            ] as const).map((dim, idx) => (
+              <div key={idx}>
+                <div className="text-[10px] text-white/30 tracking-wider mb-1.5 pl-1">{dim.label}</div>
+                <div className="flex gap-3">
+                  {[dim.a, dim.b].map((opt) => (
+                    <button
+                      key={opt.letter}
+                      onClick={() => toggleMbtiLetter(idx, opt.letter)}
+                      className={`flex-1 py-3 px-3 rounded-xl text-sm transition-all ${
+                        mbtiLetters[idx] === opt.letter
+                          ? "text-white scale-[1.02] font-medium"
+                          : "bg-[#232136]/80 text-white/50 border border-white/5"
+                      }`}
+                      style={mbtiLetters[idx] === opt.letter ? { backgroundColor: p.color, boxShadow: `0 2px 12px ${p.color}40` } : {}}
+                    >
+                      {opt.text}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -871,7 +879,7 @@ function ProfileStage({
               onClick={() => handleMbtiDone()}
               className="flex-1 py-3 rounded-xl border border-white/10 text-white/50 text-sm"
             >
-              不知道 / 跳过 →
+              跳过 →
             </button>
             {mbtiLetters.every((l) => l !== null) && (
               <motion.button
@@ -881,7 +889,7 @@ function ProfileStage({
                 className="flex-1 py-3 rounded-xl font-bold text-white"
                 style={{ backgroundColor: p.color }}
               >
-                确认 {mbtiLetters.join("")}
+                就是我 → {mbtiLetters.join("")}
               </motion.button>
             )}
           </div>
