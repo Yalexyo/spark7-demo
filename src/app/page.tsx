@@ -1548,6 +1548,7 @@ function CardStage({
         catName, personalityType, secondaryType, userProfile,
         userReply: chatReply, catDescription,
         conversation: conversationForApi,
+        chapter: 1,
       }),
     }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
 
@@ -1562,6 +1563,7 @@ function CardStage({
         artStyle: style,
         conversation: conversationForApi,
         userProfile,
+        chapter: 1,
       }),
     }).then(r => r.json()).then(d => {
       if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
@@ -1845,7 +1847,7 @@ function CardStage({
               >
                 <div className="flex items-baseline justify-between">
                   <div className="sparkle-meta" style={{ color: theme.metaColor }}>
-                    SPARK7 · 灵光卡 · NO.001
+                    SPARK7 · Chapter 1 · 初见
                   </div>
                   <div className="sparkle-meta" style={{ color: theme.metaColor }}>
                     {new Date().toLocaleDateString("en-CA")}

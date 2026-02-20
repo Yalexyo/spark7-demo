@@ -57,8 +57,17 @@ async function uploadCatPhoto(base64: string, mime: string): Promise<string | nu
 }
 
 export async function POST(req: Request) {
+  // 叙事阶段 → 画面指导
+  const chapterImageGuide: Record<number, string> = {
+    1: "Chapter 1 FIRST MEETING: The cat is watching the human FROM A DISTANCE. Curious but cautious. NOT touching. Maybe sitting on a high shelf or across the room, observing. The distance between them tells the story.",
+    2: "Chapter 2 EXPLORING: The cat is CLOSER but still has boundaries. Maybe sitting near the human's feet but not touching. Or walking past and glancing back. The gap is shrinking.",
+    3: "Chapter 3 TRUST: The cat shows vulnerability for the first time. Maybe sleeping near the human, or allowing a gentle touch. Eyes half-closed. Guard is down.",
+    4: "Chapter 4 DEEP UNDERSTANDING: Cat and human in quiet sync. Side by side, comfortable silence. The cat knows the human's rhythms. Intimate but not dramatic.",
+    5: "Chapter 5 MUTUAL TAMING: They belong to each other. Cat curled on the human's lap, or both silhouetted together. The bond is visible. Warm, permanent, chosen.",
+  };
+
   try {
-    const { catName, personalityType, catDescription, catPhotoBase64, catPhotoMime, artStyle, conversation, userProfile } = await req.json();
+    const { catName, personalityType, catDescription, catPhotoBase64, catPhotoMime, artStyle, conversation, userProfile, chapter = 1 } = await req.json();
 
     if (!API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -68,6 +77,8 @@ export async function POST(req: Request) {
     const style = artStyle || personalityDefaultStyle[personalityType] || "watercolor";
     const stylePrompt = artStylePrompts[style] || artStylePrompts.watercolor;
     const catAppearance = catDescription || "a cute domestic cat";
+    const chapterNum = Math.min(Math.max(chapter, 1), 5);
+    const narrativeGuide = chapterImageGuide[chapterNum] || chapterImageGuide[1];
 
     // ===== 并行：上传猫照 + Gemini 提炼场景 =====
     const uploadPromise = catPhotoBase64
@@ -81,12 +92,16 @@ export async function POST(req: Request) {
           try {
             const scenePrompt = `You are a visual scene director. Read this conversation between a cat named "${catName}" and their human, then describe ONE visual scene to illustrate.
 
+NARRATIVE STAGE: ${narrativeGuide}
+
 Conversation:
 ${conversation}
 
 The cat: ${catAppearance}
 
-Output ONE English paragraph (3 sentences): what the cat is doing, where the human is (silhouette/partial figure), lighting and mood. ONLY the scene description.`;
+CRITICAL: The scene MUST match the narrative stage above. If Chapter 1, the cat should be DISTANT and observing, NOT cuddling. The physical distance between cat and human reflects their relationship stage.
+
+Output ONE English paragraph (3 sentences): what the cat is doing, where the human is (silhouette/partial figure), the DISTANCE between them, lighting and mood. ONLY the scene description.`;
 
             const sceneRes = await fetch(
               `${API_302}/v1beta/models/${TEXT_MODEL}:generateContent?key=${API_KEY}`,
@@ -135,14 +150,16 @@ ${sceneDescription}
 
 Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}${moodHints}.
 
-CRITICAL: The cat in the illustration MUST look like the cat in the reference photo — same fur pattern, same colors, same distinctive features.
-Show BOTH the cat AND their human (human as gentle silhouette or partial figure). Square composition. No text, no words, no letters.`
+CRITICAL: The cat MUST look like the reference photo — same fur pattern, same colors.
+NARRATIVE: ${narrativeGuide}
+The DISTANCE between cat and human must match the relationship stage. Square composition. No text.`
       : `${sceneDescription}
 
 The cat: ${catAppearance}.
 Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}${moodHints}.
 
-Show BOTH the cat AND their human (human as gentle silhouette or partial figure). Square composition. No text, no words, no letters.`;
+NARRATIVE: ${narrativeGuide}
+The DISTANCE between cat and human must match the relationship stage. Square composition. No text.`;
 
     const imageBody: Record<string, unknown> = {
       model: IMAGE_MODEL,
