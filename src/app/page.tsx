@@ -1796,20 +1796,34 @@ function CardStage({
             {/* 2. 内容区 ~58% · 文学排版 · flex 弹性填充 */}
             <div className="relative z-10 px-6 pt-1 flex flex-col" style={{ background: theme.paperBg }}>
               <div>
-                {/* 人格徽标 */}
+                {/* Chapter 标题 · 书籍章节页风格 */}
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-                  transition={{ delay: 0.2, duration: 0.6 }}
-                  className="mb-3 flex items-center gap-2"
+                  transition={{ delay: 0.1, duration: 0.8 }}
+                  className="mb-4 pt-2"
                 >
-                  <span className="text-base">{p.emoji}</span>
-                  <span
-                    className="sparkle-meta"
-                    style={{ color: p.color, fontSize: "10px", letterSpacing: "0.12em" }}
+                  <div
+                    className="sparkle-meta mb-1"
+                    style={{ color: theme.metaColor, fontSize: "9px", letterSpacing: "0.25em" }}
                   >
-                    {p.name}
-                  </span>
+                    SPARK7
+                  </div>
+                  <div
+                    className="text-[18px] font-light tracking-wide"
+                    style={{ color: theme.titleColor, fontFamily: "'Noto Serif SC', serif" }}
+                  >
+                    Chapter 1<span className="mx-2" style={{ opacity: 0.3 }}>·</span><span className="font-normal">初见</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm">{p.emoji}</span>
+                    <span
+                      className="sparkle-meta"
+                      style={{ color: p.color, fontSize: "9px", letterSpacing: "0.12em" }}
+                    >
+                      {p.name}
+                    </span>
+                  </div>
                 </motion.div>
 
                 {/* 诗文 · 变奏式字重 */}
@@ -1837,29 +1851,74 @@ function CardStage({
                 </div>
               </div>
 
-              {/* 档案层 · 博物馆馆藏风 + 仪式留白 */}
+              {/* 关系进度 · 微妙的视觉暗示 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.2 + 0.3 }}
-                className="pt-3 pb-5"
+                className="pt-4 pb-2"
                 style={{ borderTop: `0.5px solid ${theme.divider}` }}
               >
-                <div className="flex items-baseline justify-between">
-                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
-                    SPARK7 · Chapter 1 · 初见
-                  </div>
+                {/* 五章进度点 */}
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  {["初见", "试探", "信任", "理解", "驯化"].map((s, i) => (
+                    <div key={s} className="flex flex-col items-center gap-1">
+                      <div
+                        className="rounded-full transition-all"
+                        style={{
+                          width: i === 0 ? 8 : 5,
+                          height: i === 0 ? 8 : 5,
+                          backgroundColor: i === 0 ? p.color : `rgba(${p.colorRgb}, 0.15)`,
+                          boxShadow: i === 0 ? `0 0 8px rgba(${p.colorRgb}, 0.4)` : "none",
+                        }}
+                      />
+                      <span
+                        className="sparkle-meta"
+                        style={{
+                          fontSize: "7px",
+                          color: i === 0 ? p.color : theme.metaColor,
+                          opacity: i === 0 ? 1 : 0.4,
+                        }}
+                      >
+                        {s}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-baseline justify-between mb-1">
                   <div className="sparkle-meta" style={{ color: theme.metaColor }}>
                     {new Date().toLocaleDateString("en-CA")}
                   </div>
-                </div>
-                <div className="mt-1.5">
-                  <span
-                    className="text-[13px] font-medium"
-                    style={{ color: theme.titleColor, fontFamily: "'Noto Serif SC', serif" }}
-                  >
+                  <div className="sparkle-meta" style={{ color: theme.metaColor }}>
                     {catName}的第一张灵光
-                  </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* 叙事钩子 · "下一章预告" · 核心留存机制 */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+                transition={{ delay: 0.3 + lines.length * 0.2 + 0.8, duration: 0.6 }}
+                className="pb-4 text-center"
+              >
+                <div
+                  className="inline-block px-4 py-2.5 rounded-lg"
+                  style={{ background: `rgba(${p.colorRgb}, 0.06)` }}
+                >
+                  <div
+                    className="text-[10px] mb-1 tracking-widest"
+                    style={{ color: theme.metaColor, opacity: 0.6 }}
+                  >
+                    CHAPTER 2 预告
+                  </div>
+                  <div
+                    className="text-[12px] leading-relaxed"
+                    style={{ color: theme.poemRegular, fontFamily: "'Noto Serif SC', serif" }}
+                  >
+                    它会靠近你吗？<br />还是假装路过？
+                  </div>
                 </div>
               </motion.div>
 
@@ -1896,16 +1955,102 @@ function CardStage({
             </div>
           </div>
 
-          {/* 继续按钮 · 卡片外 · 暗色背景 */}
+          {/* ===== 旅程路线图 · 游戏化"前方的拉力" ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.3 + lines.length * 0.2 + 1.0, duration: 0.8 }}
+            className="mt-5 px-1"
+          >
+            <div className="text-center mb-3">
+              <span className="text-[10px] tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                你们的故事刚刚开始
+              </span>
+            </div>
+
+            {/* 时间轴式旅程 */}
+            <div className="space-y-2.5">
+              {[
+                { day: "Day 1-7", ch: "Chapter 1 · 初见", hint: "它在远处看着你", active: true },
+                { day: "Day 8-14", ch: "Chapter 2 · 试探", hint: "第一次蹭你的手", active: false },
+                { day: "Day 15-21", ch: "Chapter 3 · 信任", hint: "它闭上了眼睛", active: false },
+                { day: "Day 22-35", ch: "Chapter 4 · 理解", hint: "不说话也懂", active: false },
+                { day: "Day 36+", ch: "Chapter 5 · 驯化", hint: "「我选择留下」", active: false, special: true },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  {/* 时间轴线 */}
+                  <div className="flex flex-col items-center pt-1" style={{ minWidth: 12 }}>
+                    <div
+                      className="rounded-full"
+                      style={{
+                        width: item.active ? 8 : 5,
+                        height: item.active ? 8 : 5,
+                        backgroundColor: item.active ? p.color : "rgba(255,255,255,0.12)",
+                        boxShadow: item.active ? `0 0 10px rgba(${p.colorRgb}, 0.5)` : "none",
+                      }}
+                    />
+                    {i < 4 && (
+                      <div
+                        className="w-px flex-1 mt-1"
+                        style={{
+                          minHeight: 16,
+                          background: item.active
+                            ? `linear-gradient(to bottom, ${p.color}, rgba(255,255,255,0.08))`
+                            : "rgba(255,255,255,0.06)",
+                        }}
+                      />
+                    )}
+                  </div>
+                  {/* 内容 */}
+                  <div className={`pb-1 ${item.active ? "" : "opacity-30"}`}>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[10px] tracking-wider" style={{ color: item.active ? p.color : "rgba(255,255,255,0.5)" }}>
+                        {item.day}
+                      </span>
+                      {item.special && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded-full" style={{ background: `rgba(${p.colorRgb}, 0.15)`, color: p.color }}>
+                          🔒
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] mt-0.5" style={{ color: item.active ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.35)" }}>
+                      {item.ch}
+                    </div>
+                    <div className="text-[10px] mt-0.5 italic" style={{ color: item.active ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)" }}>
+                      {item.hint}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 终极悬念 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={phase === "full" ? { opacity: 1 } : {}}
+              transition={{ delay: 0.3 + lines.length * 0.2 + 2.0 }}
+              className="mt-4 text-center"
+            >
+              <span
+                className="text-[11px]"
+                style={{ color: "rgba(255,255,255,0.3)", fontFamily: "'Noto Serif SC', serif" }}
+              >
+                猫是唯一自我驯化的动物<br />
+                <span style={{ color: `rgba(${p.colorRgb}, 0.6)` }}>不是你选了它——是它在决定要不要选你</span>
+              </span>
+            </motion.div>
+          </motion.div>
+
+          {/* 继续按钮 */}
           <motion.button
             initial={{ opacity: 0 }}
             animate={phase === "full" ? { opacity: 1 } : {}}
-            transition={{ delay: 0.3 + lines.length * 0.2 + 1.2 }}
+            transition={{ delay: 0.3 + lines.length * 0.2 + 2.5 }}
             onClick={onNext}
-            className="flex-shrink-0 w-full mt-4 py-2 text-[13px]"
-            style={{ color: "rgba(255,255,255,0.35)" }}
+            className="flex-shrink-0 w-full mt-5 py-2.5 text-[13px] rounded-lg transition-colors"
+            style={{ color: p.color, background: `rgba(${p.colorRgb}, 0.08)` }}
           >
-            继续 →
+            开始 Chapter 1 →
           </motion.button>
         </motion.div>
       )}
