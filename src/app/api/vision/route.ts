@@ -52,8 +52,8 @@ Output ONLY the JSON object, no other text.`;
             },
           ],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 200,
+            temperature: 0.1,
+            maxOutputTokens: 600,
           },
         }),
       }
