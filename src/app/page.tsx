@@ -1574,8 +1574,10 @@ function CardStage({
         chapter: 1,
       }),
     }).then(r => r.json()).then(d => {
+      console.log("card-image api response:", d.error || (d.image ? "b64_json ok" : d.imageUrl ? "url ok" : "no image"));
       if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-    }).catch(() => {}).finally(() => { imageDone = true; checkDone(); });
+      else if (d.imageUrl) setCardImage(d.imageUrl);
+    }).catch((e) => { console.error("card-image fetch error:", e); }).finally(() => { imageDone = true; checkDone(); });
   };
 
   useEffect(() => {

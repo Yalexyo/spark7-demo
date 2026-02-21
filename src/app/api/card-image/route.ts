@@ -56,6 +56,15 @@ async function uploadCatPhoto(base64: string, mime: string): Promise<string | nu
   }
 }
 
+// 兼容 b64_json 和 url 两种响应格式
+function extractImage(data: Record<string, unknown>) {
+  const item = (data?.data as Record<string, unknown>[])?.[0];
+  if (!item) return null;
+  if (item.b64_json) return { image: item.b64_json as string, mimeType: "image/png" };
+  if (item.url) return { imageUrl: item.url as string };
+  return null;
+}
+
 export async function POST(req: Request) {
   // 叙事阶段 → 画面指导
   const chapterImageGuide: Record<number, string> = {
@@ -184,17 +193,14 @@ The DISTANCE between cat and human must match the relationship stage. Square com
     });
 
     const imageData = await imageRes.json();
+    console.log("doubao response keys:", Object.keys(imageData || {}), "data[0] keys:", Object.keys(imageData?.data?.[0] || {}));
 
-    if (imageData?.data?.[0]?.b64_json) {
-      return NextResponse.json({
-        image: imageData.data[0].b64_json,
-        mimeType: "image/png",
-      });
-    }
+    const extracted = extractImage(imageData);
+    if (extracted) return NextResponse.json(extracted);
 
     // 图生图失败？fallback 到纯文生图（不带参考图）
     if (catPhotoUrl) {
-      console.log("image-to-image failed, fallback to text-to-image");
+      console.log("image-to-image failed, fallback to text-to-image. error:", imageData?.error);
       delete imageBody.image;
       const fallbackRes = await fetch(`${API_302}/doubao/images/generations`, {
         method: "POST",
@@ -205,14 +211,12 @@ The DISTANCE between cat and human must match the relationship stage. Square com
         body: JSON.stringify(imageBody),
       });
       const fallbackData = await fallbackRes.json();
-      if (fallbackData?.data?.[0]?.b64_json) {
-        return NextResponse.json({
-          image: fallbackData.data[0].b64_json,
-          mimeType: "image/png",
-        });
-      }
+      console.log("fallback response keys:", Object.keys(fallbackData || {}), "data[0] keys:", Object.keys(fallbackData?.data?.[0] || {}));
+      const fallbackExtracted = extractImage(fallbackData);
+      if (fallbackExtracted) return NextResponse.json(fallbackExtracted);
     }
 
+    console.error("no image in response:", JSON.stringify(imageData).slice(0, 500));
     return NextResponse.json({ error: imageData?.error?.message || "no image generated" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
