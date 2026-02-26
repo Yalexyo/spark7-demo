@@ -23,7 +23,7 @@ import {
   blendCardTheme,
 } from "@/lib/data";
 
-type Stage = "welcome" | "test" | "result" | "profile" | "chat" | "style" | "timeline" | "card" | "exit";
+type Stage = "welcome" | "test" | "result" | "profile" | "wechat" | "chat" | "style" | "timeline" | "card" | "exit";
 
 // ==================== 主页面 ====================
 
@@ -151,8 +151,19 @@ export default function Home() {
             personality={personality}
             onComplete={(profile) => {
               setUserProfile(profile);
-              setStage("chat");
+              setStage("wechat");
             }}
+          />
+        )}
+
+        {stage === "wechat" && (
+          <WeChatBridgeStage
+            key="wechat"
+            catName={catName}
+            personality={personality}
+            personalityType={personalityType}
+            userProfile={userProfile}
+            onContinueDemo={() => setStage("chat")}
           />
         )}
 
@@ -753,6 +764,171 @@ function ResultStage({
           听听{catName}想对你说什么 💬
         </motion.button>
       )}
+    </motion.div>
+  );
+}
+
+// ==================== 微信衔接页 ====================
+
+const scheduleLabel: Record<string, string> = { early: "早出早归", late: "早出晚归", home: "常在家", irregular: "不固定" };
+const energyLabel: Record<string, string> = { full: "电量充足", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" };
+const needLabel: Record<string, string> = { understand: "被理解", remind: "被提醒", cheer: "被逗乐", quiet: "安静陪伴" };
+
+function WeChatBridgeStage({
+  catName,
+  personality: p,
+  personalityType,
+  userProfile,
+  onContinueDemo,
+}: {
+  catName: string;
+  personality: Personality;
+  personalityType: PersonalityType;
+  userProfile?: UserProfile;
+  onContinueDemo: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+
+  const wechatId = "yioi0101";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(wechatId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+      const input = document.createElement("input");
+      input.value = wechatId;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const summaryText = [
+    `猫名：${catName}`,
+    `人格：${p.emoji} ${p.name}`,
+    userProfile?.mbti ? `MBTI：${userProfile.mbti}` : null,
+    userProfile?.schedule ? `作息：${scheduleLabel[userProfile.schedule] || userProfile.schedule}` : null,
+    userProfile?.energyLevel ? `状态：${energyLabel[userProfile.energyLevel] || userProfile.energyLevel}` : null,
+    userProfile?.needType ? `需要：${needLabel[userProfile.needType] || userProfile.needType}` : null,
+  ].filter(Boolean).join(" | ");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, y: -30 }}
+      className="z-10 w-full max-w-md px-6 h-dvh overflow-y-auto hide-scrollbar py-12 flex flex-col items-center justify-center"
+    >
+      {/* 猫咪说话 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="text-center mb-8"
+      >
+        <div className="text-6xl mb-4">{p.emoji}</div>
+        <div
+          className="backdrop-blur-xl p-6 rounded-2xl border border-white/10 mb-4"
+          style={{ background: "rgba(35,33,54,0.85)", boxShadow: `0 0 40px rgba(${p.colorRgb}, 0.1)` }}
+        >
+          <p className="text-white/90 text-lg leading-relaxed">
+            {personalityType === "storm" && `哼，认识你了。\n接下来 7 天，你得在微信上证明自己配得上我。`}
+            {personalityType === "moon" && `……嗯，记住你了。\n接下来 7 天，我会在微信上找你。\n别让我等太久。`}
+            {personalityType === "sun" && `耶！我们是朋友了！🎉\n接下来 7 天，我要在微信上天天找你玩！`}
+            {personalityType === "forest" && `缘分到了呢。\n接下来 7 天，我们在微信上慢慢相处吧。`}
+          </p>
+        </div>
+      </motion.div>
+
+      {/* 微信号卡片 */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.6 }}
+        className="w-full backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-6"
+        style={{ background: "rgba(35,33,54,0.9)" }}
+      >
+        <p className="text-white/50 text-sm text-center mb-3">添加微信，开始 7 日灵光之旅</p>
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <span className="text-2xl font-mono font-bold tracking-wider" style={{ color: p.color }}>{wechatId}</span>
+          <button
+            onClick={handleCopy}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: copied ? "rgba(74,222,128,0.2)" : `rgba(${p.colorRgb}, 0.15)`,
+              color: copied ? "#4ade80" : p.color,
+              border: `1px solid ${copied ? "rgba(74,222,128,0.3)" : `rgba(${p.colorRgb}, 0.3)`}`,
+            }}
+          >
+            {copied ? "✓ 已复制" : "复制"}
+          </button>
+        </div>
+        <div className="text-center text-white/40 text-xs leading-relaxed">
+          <p>添加好友时请备注「<span style={{ color: p.color }}>{catName}</span>」</p>
+          <p className="mt-1">{catName}会在微信上每天给你发消息 💬</p>
+        </div>
+      </motion.div>
+
+      {/* 运营数据摘要（可展开） */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.9 }}
+        className="w-full mb-6"
+      >
+        <button
+          onClick={() => setShowSummary(!showSummary)}
+          className="w-full text-center text-white/30 text-xs hover:text-white/50 transition"
+        >
+          {showSummary ? "收起详情 ▲" : "📋 查看你的灵魂档案 ▼"}
+        </button>
+        {showSummary && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="mt-3 p-4 rounded-xl bg-black/30 border border-white/5 text-sm text-white/60 leading-relaxed"
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <div>🐱 猫名：<span className="text-white/80">{catName}</span></div>
+              <div>{p.emoji} 人格：<span className="text-white/80">{p.name}</span></div>
+              {userProfile?.mbti && <div>🧠 MBTI：<span className="text-white/80">{userProfile.mbti}</span></div>}
+              {userProfile?.schedule && <div>⏰ 作息：<span className="text-white/80">{scheduleLabel[userProfile.schedule]}</span></div>}
+              {userProfile?.energyLevel && <div>🔋 状态：<span className="text-white/80">{energyLabel[userProfile.energyLevel]}</span></div>}
+              {userProfile?.needType && <div>💡 需要：<span className="text-white/80">{needLabel[userProfile.needType]}</span></div>}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* 继续体验 Demo */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2 }}
+        className="w-full text-center"
+      >
+        <button
+          onClick={onContinueDemo}
+          className="spark-btn w-full py-4 text-white"
+          style={{
+            backgroundColor: p.color,
+            fontSize: "var(--text-lg)",
+            boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.3)`,
+          }}
+        >
+          继续体验 Demo ✨
+        </button>
+        <p className="text-white/30 text-xs mt-3">
+          可以先体验完 Demo，再去微信添加哦
+        </p>
+      </motion.div>
     </motion.div>
   );
 }
