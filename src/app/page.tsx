@@ -2121,14 +2121,19 @@ function CardStage({
             </div>
           </motion.div>
 
-          {/* 反馈入口 · 主按钮 · 等图片加载完才显示 */}
+        </motion.div>
+      )}
+
+      {/* 反馈入口 · 固定底部 · 等图片加载完才显示 */}
+      {phase === "full" && (
+        <div className="flex-shrink-0 w-full sticky bottom-0 pt-3 pb-2" style={{ background: "linear-gradient(to bottom, transparent, #0f0e17 30%)" }}>
           {cardImage ? (
             <motion.button
               initial={{ opacity: 0, y: 10 }}
-              animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-              transition={{ delay: 0.3 + lines.length * 0.18 + 1.2, duration: 0.5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.5 }}
               onClick={onNext}
-              className="flex-shrink-0 w-full mt-4 py-4 text-[15px] font-medium rounded-2xl transition-all active:scale-[0.98]"
+              className="w-full py-4 text-[15px] font-medium rounded-2xl transition-all active:scale-[0.98]"
               style={{
                 background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
                 color: "#fff",
@@ -2137,16 +2142,16 @@ function CardStage({
             >
               {catName} 想听听你的感受 💬
             </motion.button>
-          ) : phase === "full" ? (
+          ) : (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex-shrink-0 w-full mt-4 py-4 text-center text-[13px] text-white/30"
+              className="w-full py-4 text-center text-[13px] text-white/30"
             >
               正在生成配图…
             </motion.div>
-          ) : null}
-        </motion.div>
+          )}
+        </div>
       )}
     </motion.div>
   );
@@ -2214,7 +2219,6 @@ function ExitStage({
   // P0-1: 问卷数据
   const [peakMoment, setPeakMoment] = useState<string | null>(null);
   const [peakExtra, setPeakExtra] = useState("");
-  const [showPeakExtra, setShowPeakExtra] = useState(false);
   const [nps, setNps] = useState<number | null>(null);
   const q2Ref = useRef<HTMLDivElement>(null);
 
@@ -2350,11 +2354,11 @@ function ExitStage({
           style={{ scrollbarWidth: "none" }}
         >
           {/* Q1 情感峰值 */}
-          <div className="text-center mb-8">
-            <p className="text-white/50 text-sm mb-4">
+          <div className="text-center mb-6">
+            <p className="text-white/50 text-sm mb-3">
               哪个瞬间最打动你？
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {peakOptions.map((opt) => (
                 <motion.button
                   key={opt.key}
@@ -2362,7 +2366,7 @@ function ExitStage({
                   animate={{ opacity: 1, scale: 1 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => handlePeakSelect(opt.key)}
-                  className="px-4 py-2.5 rounded-full text-sm transition-all"
+                  className="px-3 py-2 rounded-xl text-sm transition-all"
                   style={{
                     background: peakMoment === opt.key
                       ? `rgba(${p.colorRgb}, 0.25)`
@@ -2373,36 +2377,20 @@ function ExitStage({
                     color: peakMoment === opt.key ? p.color : "rgba(255,255,255,0.6)",
                   }}
                 >
-                  <span className="mr-1.5">{opt.emoji}</span>{opt.label}
+                  <span className="mr-1">{opt.emoji}</span>{opt.label}
                 </motion.button>
               ))}
             </div>
 
-            {/* 可展开"其他想说的" */}
-            <div className="mt-3">
-              {!showPeakExtra ? (
-                <button
-                  onClick={() => setShowPeakExtra(true)}
-                  className="text-xs text-white/30 hover:text-white/50 transition-colors"
-                >
-                  还有其他想说的？
-                </button>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                >
-                  <textarea
-                    value={peakExtra}
-                    onChange={(e) => setPeakExtra(e.target.value)}
-                    placeholder="说说看……"
-                    rows={2}
-                    className="w-full mt-2 bg-[#1a1826] text-sm py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 resize-none"
-                    style={{ focusRingColor: p.color } as React.CSSProperties}
-                  />
-                </motion.div>
-              )}
-            </div>
+            {/* 补充输入 · 始终可见 */}
+            <textarea
+              value={peakExtra}
+              onChange={(e) => setPeakExtra(e.target.value)}
+              placeholder="还有其他想说的……"
+              rows={2}
+              className="w-full mt-3 bg-[#1a1826] text-sm py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 resize-none"
+              style={{ focusRingColor: p.color } as React.CSSProperties}
+            />
           </div>
 
           {/* Q2 NPS */}
