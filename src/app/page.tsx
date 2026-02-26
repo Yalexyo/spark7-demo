@@ -388,7 +388,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onStart(name)}
+            onKeyDown={(e) => e.key === "Enter" && photoBase64 && onStart(name, photoBase64, photoMime)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="例如：爆米橘"
