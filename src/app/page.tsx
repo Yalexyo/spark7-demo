@@ -2145,11 +2145,12 @@ function ExitStage({
   cardSaved: boolean;
   cardShared: boolean;
 }) {
-  const [phase, setPhase] = useState<"feedback" | "reply" | "questions" | "waitlist" | "thanks">("feedback");
+  const [phase, setPhase] = useState<"feedback" | "reply" | "questions" | "thanks">("feedback");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [contact, setContact] = useState("");
   const [nickname, setNickname] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [waitlistExpanded, setWaitlistExpanded] = useState(false);
 
   // P0-1: 问卷数据
   const [peakMoment, setPeakMoment] = useState<string | null>(null);
@@ -2172,8 +2173,8 @@ function ExitStage({
     setTimeout(() => setPhase("questions"), 2500);
   };
 
-  // P0-2: 发送飞书 Webhook
-  const sendTrackData = async (joinedWaitlist: boolean) => {
+  // 发送飞书 Webhook（Q2 完成后立即推送）
+  const sendTrackData = async (extra?: { nickname?: string; contact?: string; isSupplemental?: boolean }) => {
     try {
       await fetch("/api/track", {
         method: "POST",
@@ -2186,19 +2187,21 @@ function ExitStage({
           peakMoment,
           peakExtra: peakExtra.trim() || undefined,
           nps,
-          nickname: nickname.trim() || undefined,
-          contact: contact.trim() || undefined,
-          joinedWaitlist,
+          nickname: extra?.nickname || undefined,
+          contact: extra?.contact || undefined,
+          joinedWaitlist: !!extra?.contact,
           durationMs,
           cardSaved,
           cardShared,
           userProfile,
+          isSupplemental: extra?.isSupplemental || false,
         }),
       });
     } catch {}
   };
 
-  const handleSubmit = () => {
+  // 感谢页折叠区：提交联系方式（补充推送）
+  const handleWaitlistSubmit = () => {
     // 存到 localStorage
     try {
       const data = JSON.parse(localStorage.getItem("spark7_waitlist") || "[]");
@@ -2206,14 +2209,8 @@ function ExitStage({
       localStorage.setItem("spark7_waitlist", JSON.stringify(data));
     } catch {}
 
-    setSubmitted(true);
-    sendTrackData(true);
-    setTimeout(() => setPhase("thanks"), 1000);
-  };
-
-  const handleSkipWaitlist = () => {
-    sendTrackData(false);
-    setPhase("thanks");
+    setWaitlistSubmitted(true);
+    sendTrackData({ nickname: nickname.trim(), contact: contact.trim(), isSupplemental: true });
   };
 
   // Q1 选中后自动滚到 Q2
@@ -2391,12 +2388,12 @@ function ExitStage({
                 </motion.div>
               )}
 
-              {/* 继续按钮（拖动后才出现） */}
+              {/* 继续按钮（拖动后才出现）→ 直接跳感谢页并推送 webhook */}
               {nps !== null && (
                 <motion.button
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  onClick={() => setPhase("waitlist")}
+                  onClick={() => { sendTrackData(); setPhase("thanks"); }}
                   className="mt-4 px-8 py-3 rounded-full text-sm transition-colors"
                   style={{
                     background: `rgba(${p.colorRgb}, 0.15)`,
@@ -2409,62 +2406,6 @@ function ExitStage({
               )}
             </motion.div>
           )}
-        </motion.div>
-      )}
-
-      {/* 等待列表 */}
-      {phase === "waitlist" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full text-center"
-        >
-          <div className="text-4xl mb-3">📮</div>
-          <h2 className="text-xl font-bold mb-2">
-            想在 Spark7 上线时第一个知道吗？
-          </h2>
-          <p className="text-white/40 text-sm mb-8">
-            留下联系方式，{catName}会第一时间通知你
-          </p>
-
-          <div className="bg-[#232136]/80 backdrop-blur-xl p-6 rounded-2xl border border-white/5 space-y-4 mb-6">
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="你的昵称"
-              className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-2 transition-all placeholder:text-white/20 border border-white/5 text-sm"
-              style={{ focusRingColor: p.color } as React.CSSProperties}
-            />
-            <input
-              type="text"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="微信号 / 手机号 / 邮箱"
-              className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-2 transition-all placeholder:text-white/20 border border-white/5 text-sm"
-              style={{ focusRingColor: p.color } as React.CSSProperties}
-            />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={!contact.trim()}
-            className="spark-btn w-full py-4 text-white disabled:opacity-30"
-            style={{
-              background: submitted ? "var(--accent-forest)" : "var(--brand-gradient)",
-              boxShadow: `0 4px 24px var(--brand-glow)`,
-            }}
-          >
-            {submitted ? "已加入 ✓" : "加入等待列表 ✨"}
-          </button>
-
-          <button
-            onClick={handleSkipWaitlist}
-            className="mt-4 text-sm"
-            style={{ color: "var(--text-muted)", minHeight: "var(--touch-min)" }}
-          >
-            先不了，直接看看
-          </button>
         </motion.div>
       )}
 
@@ -2511,7 +2452,7 @@ function ExitStage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="bg-[#232136]/60 backdrop-blur rounded-2xl p-6 border border-white/5 mb-8"
+            className="bg-[#232136]/60 backdrop-blur rounded-2xl p-6 border border-white/5 mb-6"
           >
             <p className="text-white/70 text-sm leading-relaxed mb-4">
               Spark7 正在打造一个让人与动物灵魂相遇的地方。
@@ -2523,6 +2464,72 @@ function ExitStage({
               <span>📝 灵光卡收藏</span>
               <span>💛 拒绝弃养</span>
             </div>
+          </motion.div>
+
+          {/* 折叠式等待列表 */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.0 }}
+            className="mb-6"
+          >
+            {!waitlistSubmitted ? (
+              <>
+                <button
+                  onClick={() => setWaitlistExpanded(!waitlistExpanded)}
+                  className="text-sm transition-colors"
+                  style={{ color: waitlistExpanded ? p.color : "rgba(255,255,255,0.4)" }}
+                >
+                  {waitlistExpanded ? "收起 ↑" : "想第一时间体验完整版？ ↓"}
+                </button>
+
+                {waitlistExpanded && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-4 bg-[#232136]/60 backdrop-blur rounded-2xl p-5 border border-white/5 space-y-3"
+                  >
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="你的昵称"
+                      className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
+                      style={{ focusRingColor: p.color } as React.CSSProperties}
+                    />
+                    <input
+                      type="text"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value)}
+                      placeholder="微信号 / 手机号 / 邮箱"
+                      className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
+                      style={{ focusRingColor: p.color } as React.CSSProperties}
+                    />
+                    <button
+                      onClick={handleWaitlistSubmit}
+                      disabled={!contact.trim()}
+                      className="w-full py-3 rounded-xl text-sm font-medium text-white disabled:opacity-30 transition-all"
+                      style={{
+                        background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
+                        boxShadow: contact.trim() ? `0 4px 16px rgba(${p.colorRgb}, 0.3)` : "none",
+                      }}
+                    >
+                      提交 ✨
+                    </button>
+                  </motion.div>
+                )}
+              </>
+            ) : (
+              <motion.p
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-sm"
+                style={{ color: p.color }}
+              >
+                ✓ 已记录，{catName}会第一时间找到你
+              </motion.p>
+            )}
           </motion.div>
 
           <motion.button
