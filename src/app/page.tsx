@@ -2031,12 +2031,12 @@ function CardStage({
                 </div>
               </motion.div>
 
-              {/* 操作按钮 · 主人格色 CTA */}
+              {/* 操作按钮 · 保存/分享 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.18 + 0.9 }}
-                className="flex items-center justify-center gap-3 pb-6"
+                className="flex items-center justify-center gap-3 pb-4"
               >
                 <button
                   onClick={() => { setSaved(true); onCardSaved?.(); setTimeout(() => setSaved(false), 2000); }}
@@ -2072,128 +2072,20 @@ function CardStage({
             </div>
           </motion.div>
 
-          {/* ===== 旅程路线图 · 游戏化"前方的拉力" ===== */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 0.3 + lines.length * 0.2 + 1.0, duration: 0.8 }}
-            className="mt-5 px-1"
-          >
-            <div className="text-center mb-3">
-              <span className="text-[10px] tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.25)" }}>
-                你们的故事刚刚开始
-              </span>
-            </div>
-
-            {/* 时间轴式旅程 · 精确匹配商业蓝图 */}
-            <div className="space-y-0">
-              {[
-                { day: "Day 1-7", ch: "Chapter 1 · 初见", hint: "它在远处看着你", active: true, phase: "free" },
-                { day: "Day 8-14", ch: "Chapter 2 · 试探", hint: "第一次蹭你的手", active: false, phase: "free" },
-                { day: "", ch: "", hint: "", active: false, phase: "paywall" },
-                { day: "Day 15+", ch: "Chapter 3 · 信任", hint: "它闭上了眼睛", active: false, phase: "paid" },
-                { day: "Day 22+", ch: "Chapter 4 · 深层理解", hint: "不说话也懂", active: false, phase: "paid" },
-                { day: "Day 36+", ch: "Chapter 5 · 互相驯化", hint: "「我选择留下」", active: false, phase: "sub" },
-              ].map((item, i) => {
-                // 付费墙分隔线
-                if (item.phase === "paywall") {
-                  return (
-                    <div key={i} className="flex items-center gap-3 py-2.5 pl-1">
-                      <div className="flex flex-col items-center" style={{ minWidth: 12 }}>
-                        <div className="w-px" style={{ height: 8, background: "rgba(255,255,255,0.06)" }} />
-                      </div>
-                      <div className="flex items-center gap-2 flex-1">
-                        <div className="flex-1 h-px" style={{ background: `rgba(${p.colorRgb}, 0.2)` }} />
-                        <span className="text-[8px] tracking-[0.15em] px-2 py-0.5 rounded-full whitespace-nowrap"
-                          style={{ color: p.color, background: `rgba(${p.colorRgb}, 0.08)`, border: `0.5px solid rgba(${p.colorRgb}, 0.15)` }}>
-                          ¥12.8 留住{catName}
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: `rgba(${p.colorRgb}, 0.2)` }} />
-                      </div>
-                    </div>
-                  );
-                }
-
-                const isSub = item.phase === "sub";
-
-                return (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="flex flex-col items-center pt-1" style={{ minWidth: 12 }}>
-                      <div
-                        className="rounded-full"
-                        style={{
-                          width: item.active ? 8 : 5,
-                          height: item.active ? 8 : 5,
-                          backgroundColor: item.active ? p.color : `rgba(255,255,255,${item.phase === "free" ? 0.2 : 0.08})`,
-                          boxShadow: item.active ? `0 0 10px rgba(${p.colorRgb}, 0.5)` : "none",
-                        }}
-                      />
-                      {i < 5 && (
-                        <div className="w-px flex-1 mt-1"
-                          style={{
-                            minHeight: 14,
-                            background: item.active
-                              ? `linear-gradient(to bottom, ${p.color}, rgba(255,255,255,0.06))`
-                              : "rgba(255,255,255,0.04)",
-                          }}
-                        />
-                      )}
-                    </div>
-                    <div className={`pb-2 ${item.active ? "" : item.phase === "free" ? "opacity-40" : "opacity-20"}`}>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[10px] tracking-wider" style={{ color: item.active ? p.color : "rgba(255,255,255,0.5)" }}>
-                          {item.day}
-                        </span>
-                        {item.phase === "free" && !item.active && (
-                          <span className="text-[7px] px-1 py-0.5 rounded" style={{ color: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.05)" }}>
-                            免费
-                          </span>
-                        )}
-                        {isSub && (
-                          <span className="text-[7px] px-1 py-0.5 rounded" style={{ color: p.color, background: `rgba(${p.colorRgb}, 0.1)` }}>
-                            灵犀 ¥6.8/月
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] mt-0.5" style={{ color: item.active ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.35)" }}>
-                        {item.ch}
-                      </div>
-                      <div className="text-[10px] mt-0.5 italic" style={{ color: item.active ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)" }}>
-                        {item.hint}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 哲学底线 */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={phase === "full" ? { opacity: 1 } : {}}
-              transition={{ delay: 0.3 + lines.length * 0.2 + 2.0 }}
-              className="mt-4 text-center"
-            >
-              <span
-                className="text-[11px] leading-relaxed"
-                style={{ color: "rgba(255,255,255,0.25)", fontFamily: "'Noto Serif SC', serif" }}
-              >
-                猫是唯一自我驯化的动物<br />
-                <span style={{ color: `rgba(${p.colorRgb}, 0.5)` }}>不是你选了它——是它在决定要不要选你</span>
-              </span>
-            </motion.div>
-          </motion.div>
-
-          {/* 继续按钮 */}
+          {/* 反馈入口 · 主按钮 */}
           <motion.button
-            initial={{ opacity: 0 }}
-            animate={phase === "full" ? { opacity: 1 } : {}}
-            transition={{ delay: 0.3 + lines.length * 0.2 + 2.5 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+            transition={{ delay: 0.3 + lines.length * 0.18 + 1.2, duration: 0.5 }}
             onClick={onNext}
-            className="flex-shrink-0 w-full mt-5 py-2.5 text-[13px] rounded-lg transition-colors"
-            style={{ color: p.color, background: `rgba(${p.colorRgb}, 0.08)` }}
+            className="flex-shrink-0 w-full mt-4 py-4 text-[15px] font-medium rounded-2xl transition-all active:scale-[0.98]"
+            style={{
+              background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
+              color: "#fff",
+              boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.35), 0 1px 3px rgba(0,0,0,0.2)`,
+            }}
           >
-            开始 Chapter 1 →
+            {catName} 想听听你的感受 💬
           </motion.button>
         </motion.div>
       )}
