@@ -43,6 +43,11 @@ export default function Home() {
   const [catPhotoMime, setCatPhotoMime] = useState<string | null>(null);
   const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
 
+  // 验证改造：新增状态
+  const [demoStartTime] = useState(Date.now());
+  const [cardSaved, setCardSaved] = useState(false);
+  const [cardShared, setCardShared] = useState(false);
+
   const personality = personalities[personalityType];
 
   const handleOptionSelect = (optionIndex: number) => {
@@ -161,6 +166,8 @@ export default function Home() {
             catDescriptionEn={catDescriptionEn}
             catPhotoBase64={catPhotoBase64}
             catPhotoMime={catPhotoMime}
+            onCardSaved={() => setCardSaved(true)}
+            onCardShared={() => setCardShared(true)}
             onNext={() => setStage("exit")}
           />
         )}
@@ -170,6 +177,12 @@ export default function Home() {
             key="exit"
             catName={catName}
             personality={personality}
+            personalityType={personalityType}
+            secondaryType={secondaryType}
+            userProfile={userProfile}
+            durationMs={Date.now() - demoStartTime}
+            cardSaved={cardSaved}
+            cardShared={cardShared}
           />
         )}
       </AnimatePresence>
@@ -395,7 +408,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
           )}
         </div>
 
-        {/* 猫咪照片上传（可选） */}
+        {/* 猫咪照片上传（必选） */}
         <div className="relative z-10 mb-6">
           <input
             ref={fileRef}
@@ -406,45 +419,56 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
             className="hidden"
           />
           {photoPreview ? (
-            <div className="flex items-center justify-center gap-3">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-2"
+            >
               <div
-                className="w-16 h-16 rounded-full bg-cover bg-center border-2"
+                className="w-24 h-24 rounded-2xl bg-cover bg-center border-2"
                 style={{
                   backgroundImage: `url(${photoPreview})`,
-                  borderColor: "rgba(168,85,247,0.4)",
-                  boxShadow: "0 0 12px rgba(168,85,247,0.2)",
+                  borderColor: "rgba(168,85,247,0.5)",
+                  boxShadow: "0 0 20px rgba(168,85,247,0.25), 0 4px 12px rgba(0,0,0,0.3)",
                 }}
               />
-              <div className="text-left">
-                <p className="text-sm text-white/70">照片已上传 ✓</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-purple-300">✓ 照片已就绪</span>
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="text-xs text-purple-400 hover:text-purple-300"
+                  className="text-xs text-white/30 hover:text-white/50 transition-colors underline underline-offset-2"
                 >
-                  重新选择
+                  换一张
                 </button>
               </div>
-            </div>
+            </motion.div>
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full py-3 rounded-xl border border-dashed border-white/10 text-white/40 text-sm hover:border-purple-500/30 hover:text-white/60 transition-all"
+              className="w-full py-5 rounded-2xl border-2 border-dashed transition-all active:scale-[0.98] group"
+              style={{
+                borderColor: "rgba(168,85,247,0.25)",
+                background: "rgba(168,85,247,0.04)",
+              }}
             >
-              📷 上传一张猫咪照片（可选）
+              <div className="text-3xl mb-1.5 group-hover:scale-110 transition-transform">📷</div>
+              <p className="text-white/60 text-sm font-medium">上传一张猫咪照片</p>
+              <p className="text-white/25 text-xs mt-1">拍一张或从相册选择</p>
             </button>
           )}
         </div>
 
         <button
           onClick={() => onStart(name, photoBase64 || undefined, photoMime)}
-          className="spark-btn relative z-10 w-full text-white py-4"
+          disabled={!photoBase64}
+          className="spark-btn relative z-10 w-full text-white py-4 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
           style={{
             background: "var(--brand-gradient)",
-            boxShadow: "0 4px 24px var(--brand-glow), 0 1px 3px rgba(0,0,0,0.2)",
+            boxShadow: photoBase64 ? "0 4px 24px var(--brand-glow), 0 1px 3px rgba(0,0,0,0.2)" : "none",
             borderRadius: "var(--radius-md)",
           }}
         >
-          开始连接 ✨
+          {photoBase64 ? "开始连接 ✨" : "先上传猫咪照片 📷"}
         </button>
       </motion.div>
     </motion.div>
@@ -1492,6 +1516,8 @@ function CardStage({
   catDescriptionEn,
   catPhotoBase64,
   catPhotoMime,
+  onCardSaved,
+  onCardShared,
   onNext,
 }: {
   catName: string;
@@ -1505,6 +1531,8 @@ function CardStage({
   catDescriptionEn?: string | null;
   catPhotoBase64?: string | null;
   catPhotoMime?: string | null;
+  onCardSaved?: () => void;
+  onCardShared?: () => void;
   onNext: () => void;
 }) {
   // B. 画风选择
@@ -1519,6 +1547,15 @@ function CardStage({
   const [phase, setPhase] = useState<"style-select" | "gathering" | "reveal" | "full">("style-select");
   const [saved, setSaved] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // P1: 灵光卡揭晓音效
+  const revealSounds: Record<string, string> = {
+    storm: "/sounds/reveal-storm.mp3",
+    moon: "/sounds/reveal-moon.mp3",
+    sun: "/sounds/reveal-sun.mp3",
+    forest: "/sounds/reveal-forest.mp3",
+  };
 
   // 主题配色（主人格 + 副人格融合）
   const theme = blendCardTheme(personalityType, secondaryType);
@@ -1597,8 +1634,17 @@ function CardStage({
 
   useEffect(() => {
     if (phase === "reveal") {
+      // P1: 播放人格揭晓音效
+      const audio = new Audio(revealSounds[personalityType] || revealSounds.moon);
+      audio.volume = 0.4;
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+
       const t = setTimeout(() => setPhase("full"), 1000);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t);
+        audioRef.current?.pause();
+      };
     }
   }, [phase]);
 
@@ -1734,12 +1780,24 @@ function CardStage({
           className="w-full py-6"
         >
           {/* ===== 灵光卡主体 · 叙述画卷 · 主副人格色调 ===== */}
-          <div
+          <motion.div
             ref={cardRef}
             className="sparkle-card relative rounded-[16px] overflow-hidden flex flex-col"
             style={{
               background: theme.paperBg,
               boxShadow: `0 2px 40px ${theme.accentGlow}, 0 0 0 0.5px ${theme.divider}`,
+            }}
+            animate={phase === "full" ? {
+              boxShadow: [
+                `0 2px 40px ${theme.accentGlow}, 0 0 0 0.5px ${theme.divider}`,
+                `0 2px 60px ${theme.accentGlow}, 0 0 30px rgba(${p.colorRgb}, 0.15), 0 0 0 0.5px ${theme.divider}`,
+                `0 2px 40px ${theme.accentGlow}, 0 0 0 0.5px ${theme.divider}`,
+              ],
+            } : {}}
+            transition={{
+              delay: 0.3 + lines.length * 0.18 + 0.5,
+              duration: 1.5,
+              ease: "easeInOut",
             }}
           >
             {/* 1. 插画区 · 无界浸润 · 图文一体 */}
@@ -1981,7 +2039,7 @@ function CardStage({
                 className="flex items-center justify-center gap-3 pb-6"
               >
                 <button
-                  onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}
+                  onClick={() => { setSaved(true); onCardSaved?.(); setTimeout(() => setSaved(false), 2000); }}
                   className="flex-1 py-2.5 text-[12px] tracking-wider rounded-lg transition-colors"
                   style={{
                     border: `0.5px solid ${theme.divider}`,
@@ -1993,6 +2051,7 @@ function CardStage({
                 </button>
                 <button
                   onClick={() => {
+                    onCardShared?.();
                     if (navigator.share) {
                       navigator.share({
                         title: `${catName}的灵光卡`,
@@ -2011,7 +2070,7 @@ function CardStage({
                 </button>
               </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           {/* ===== 旅程路线图 · 游戏化"前方的拉力" ===== */}
           <motion.div
@@ -2178,15 +2237,34 @@ const catFeedbackReply: Record<PersonalityType, Record<string, string>> = {
 function ExitStage({
   catName,
   personality: p,
+  personalityType,
+  secondaryType,
+  userProfile,
+  durationMs,
+  cardSaved,
+  cardShared,
 }: {
   catName: string;
   personality: Personality;
+  personalityType: PersonalityType;
+  secondaryType: PersonalityType | null;
+  userProfile?: UserProfile;
+  durationMs: number;
+  cardSaved: boolean;
+  cardShared: boolean;
 }) {
-  const [phase, setPhase] = useState<"feedback" | "reply" | "waitlist" | "thanks">("feedback");
+  const [phase, setPhase] = useState<"feedback" | "reply" | "questions" | "waitlist" | "thanks">("feedback");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [contact, setContact] = useState("");
   const [nickname, setNickname] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  // P0-1: 问卷数据
+  const [peakMoment, setPeakMoment] = useState<string | null>(null);
+  const [peakExtra, setPeakExtra] = useState("");
+  const [showPeakExtra, setShowPeakExtra] = useState(false);
+  const [nps, setNps] = useState<number | null>(null);
+  const q2Ref = useRef<HTMLDivElement>(null);
 
   const handleFeedback = (fb: Feedback & string) => {
     setFeedback(fb);
@@ -2199,7 +2277,33 @@ function ExitStage({
       localStorage.setItem("spark7_feedback", JSON.stringify(data));
     } catch {}
 
-    setTimeout(() => setPhase("waitlist"), 2500);
+    setTimeout(() => setPhase("questions"), 2500);
+  };
+
+  // P0-2: 发送飞书 Webhook
+  const sendTrackData = async (joinedWaitlist: boolean) => {
+    try {
+      await fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          catName,
+          personalityType,
+          secondaryType,
+          feedback,
+          peakMoment,
+          peakExtra: peakExtra.trim() || undefined,
+          nps,
+          nickname: nickname.trim() || undefined,
+          contact: contact.trim() || undefined,
+          joinedWaitlist,
+          durationMs,
+          cardSaved,
+          cardShared,
+          userProfile,
+        }),
+      });
+    } catch {}
   };
 
   const handleSubmit = () => {
@@ -2211,8 +2315,27 @@ function ExitStage({
     } catch {}
 
     setSubmitted(true);
+    sendTrackData(true);
     setTimeout(() => setPhase("thanks"), 1000);
   };
+
+  const handleSkipWaitlist = () => {
+    sendTrackData(false);
+    setPhase("thanks");
+  };
+
+  // Q1 选中后自动滚到 Q2
+  const handlePeakSelect = (key: string) => {
+    setPeakMoment(key);
+    setTimeout(() => q2Ref.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+  };
+
+  const peakOptions = [
+    { key: "personality", label: "灵魂人格", emoji: "🧬" },
+    { key: "chat", label: "跟猫聊天", emoji: "💬" },
+    { key: "timeline", label: "时间线", emoji: "📖" },
+    { key: "card", label: "灵光卡", emoji: "✨" },
+  ];
 
   return (
     <motion.div
@@ -2270,6 +2393,133 @@ function ExitStage({
         </motion.div>
       )}
 
+      {/* P0-1: 问卷 — Q1 + Q2 */}
+      {phase === "questions" && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full overflow-y-auto max-h-[80dvh] scrollbar-hide"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {/* Q1 情感峰值 */}
+          <div className="text-center mb-8">
+            <p className="text-white/50 text-sm mb-4">
+              哪个瞬间最打动你？
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {peakOptions.map((opt) => (
+                <motion.button
+                  key={opt.key}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handlePeakSelect(opt.key)}
+                  className="px-4 py-2.5 rounded-full text-sm transition-all"
+                  style={{
+                    background: peakMoment === opt.key
+                      ? `rgba(${p.colorRgb}, 0.25)`
+                      : "rgba(255,255,255,0.05)",
+                    border: peakMoment === opt.key
+                      ? `1px solid ${p.color}`
+                      : "1px solid rgba(255,255,255,0.08)",
+                    color: peakMoment === opt.key ? p.color : "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  <span className="mr-1.5">{opt.emoji}</span>{opt.label}
+                </motion.button>
+              ))}
+            </div>
+
+            {/* 可展开"其他想说的" */}
+            <div className="mt-3">
+              {!showPeakExtra ? (
+                <button
+                  onClick={() => setShowPeakExtra(true)}
+                  className="text-xs text-white/30 hover:text-white/50 transition-colors"
+                >
+                  还有其他想说的？
+                </button>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                >
+                  <textarea
+                    value={peakExtra}
+                    onChange={(e) => setPeakExtra(e.target.value)}
+                    placeholder="说说看……"
+                    rows={2}
+                    className="w-full mt-2 bg-[#1a1826] text-sm py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 resize-none"
+                    style={{ focusRingColor: p.color } as React.CSSProperties}
+                  />
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+          {/* Q2 NPS */}
+          {peakMoment && (
+            <motion.div
+              ref={q2Ref}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-center"
+            >
+              <p className="text-white/50 text-sm mb-5">
+                你会跟其他铲屎官说起我吗？
+              </p>
+
+              {/* 0-10 滑块 */}
+              <div className="px-2 mb-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={nps ?? 5}
+                  onChange={(e) => setNps(Number(e.target.value))}
+                  className="w-full accent-current"
+                  style={{ accentColor: p.color, opacity: nps === null ? 0.3 : 1 }}
+                />
+                <div className="flex justify-between text-[10px] text-white/25 mt-1 px-0.5">
+                  <span>0 · 完全不会</span>
+                  <span>10 · 疯狂安利</span>
+                </div>
+              </div>
+
+              {nps !== null && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-2 mb-2"
+                >
+                  <span className="text-2xl font-bold" style={{ color: p.color }}>{nps}</span>
+                  <span className="text-white/30 text-sm"> / 10</span>
+                </motion.div>
+              )}
+
+              {/* 继续按钮（拖动后才出现） */}
+              {nps !== null && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={() => setPhase("waitlist")}
+                  className="mt-4 px-8 py-3 rounded-full text-sm transition-colors"
+                  style={{
+                    background: `rgba(${p.colorRgb}, 0.15)`,
+                    color: p.color,
+                    border: `1px solid rgba(${p.colorRgb}, 0.3)`,
+                  }}
+                >
+                  继续 →
+                </motion.button>
+              )}
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+
       {/* 等待列表 */}
       {phase === "waitlist" && (
         <motion.div
@@ -2317,7 +2567,7 @@ function ExitStage({
           </button>
 
           <button
-            onClick={() => setPhase("thanks")}
+            onClick={handleSkipWaitlist}
             className="mt-4 text-sm"
             style={{ color: "var(--text-muted)", minHeight: "var(--touch-min)" }}
           >
