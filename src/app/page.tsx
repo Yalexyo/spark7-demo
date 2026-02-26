@@ -23,7 +23,7 @@ import {
   blendCardTheme,
 } from "@/lib/data";
 
-type Stage = "welcome" | "test" | "result" | "profile" | "chat" | "timeline" | "card" | "exit";
+type Stage = "welcome" | "test" | "result" | "profile" | "chat" | "style" | "timeline" | "card" | "exit";
 
 // ==================== 主页面 ====================
 
@@ -47,6 +47,35 @@ export default function Home() {
   const [demoStartTime] = useState(Date.now());
   const [cardSaved, setCardSaved] = useState(false);
   const [cardShared, setCardShared] = useState(false);
+
+  // 画风选择 & 图片预生成（提升到 Home 层）
+  const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
+  const [selectedStyle, setSelectedStyle] = useState<string>("");
+  const [cardImage, setCardImage] = useState<string | null>(null);
+
+  const startImageGeneration = (style: string) => {
+    setSelectedStyle(style);
+    setCardImage(null);
+    const conversationForApi = chatHistory.length > 0
+      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
+      : chatReply || "";
+    fetch("/api/card-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catName, personalityType,
+        catDescription: catDescriptionEn || catDescription,
+        catPhotoBase64, catPhotoMime,
+        artStyle: style,
+        conversation: conversationForApi,
+        userProfile,
+        chapter: 1,
+      }),
+    }).then(r => r.json()).then(d => {
+      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
+      else if (d.imageUrl) setCardImage(d.imageUrl);
+    }).catch((e) => { console.error("card-image fetch error:", e); });
+  };
 
   const personality = personalities[personalityType];
 
@@ -136,7 +165,21 @@ export default function Home() {
             catDescription={catDescription}
             onReply={setChatReply}
             onChatHistory={setChatHistory}
-            onNext={() => setStage("timeline")}
+            onNext={() => setStage("style")}
+          />
+        )}
+
+        {stage === "style" && (
+          <StyleSelectStage
+            key="style"
+            catName={catName}
+            personality={personality}
+            personalityType={personalityType}
+            defaultStyle={defaultStyles[personalityType] || "watercolor"}
+            onConfirm={(style) => {
+              startImageGeneration(style);
+              setStage("timeline");
+            }}
           />
         )}
 
@@ -164,8 +207,7 @@ export default function Home() {
             chatHistory={chatHistory}
             catDescription={catDescription}
             catDescriptionEn={catDescriptionEn}
-            catPhotoBase64={catPhotoBase64}
-            catPhotoMime={catPhotoMime}
+            preloadedImage={cardImage}
             onCardSaved={() => setCardSaved(true)}
             onCardShared={() => setCardShared(true)}
             onNext={() => setStage("exit")}
@@ -1286,6 +1328,94 @@ function ChatStage({
   );
 }
 
+// ==================== 画风选择（独立 Stage） ====================
+
+function StyleSelectStage({
+  catName,
+  personality: p,
+  personalityType,
+  defaultStyle,
+  onConfirm,
+}: {
+  catName: string;
+  personality: Personality;
+  personalityType: PersonalityType;
+  defaultStyle: string;
+  onConfirm: (style: string) => void;
+}) {
+  const styleOptions = [
+    { key: "anime", label: "日漫", icon: "🎌" },
+    { key: "watercolor", label: "水彩", icon: "🎨" },
+    { key: "ink", label: "水墨", icon: "🖌️" },
+    { key: "storybook", label: "绘本", icon: "📖" },
+  ];
+  const [selected, setSelected] = useState(defaultStyle);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -30 }}
+      transition={{ duration: 0.5 }}
+      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center"
+    >
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="text-5xl mb-4"
+      >
+        {p.emoji}
+      </motion.div>
+      <h2 className="text-xl font-bold mb-2 text-white">选择灵光卡画风</h2>
+      <p className="text-sm text-white/40 mb-8">
+        为 {catName} 的故事挑一种风格
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 mb-8 w-full">
+        {styleOptions.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setSelected(s.key)}
+            className="relative p-4 rounded-xl border transition-all active:scale-95"
+            style={{
+              borderColor: selected === s.key ? p.color : "rgba(255,255,255,0.08)",
+              background: selected === s.key
+                ? `rgba(${p.colorRgb}, 0.12)`
+                : "rgba(35,33,54,0.8)",
+              boxShadow: selected === s.key
+                ? `0 0 20px rgba(${p.colorRgb}, 0.15)`
+                : "none",
+            }}
+          >
+            <span className="text-2xl mb-1 block">{s.icon}</span>
+            <span className={`text-sm font-medium ${selected === s.key ? "text-white" : "text-white/60"}`}>
+              {s.label}
+            </span>
+            {selected === s.key && (
+              <motion.div
+                layoutId="style-check"
+                className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+                style={{ background: p.color }}
+              >
+                ✓
+              </motion.div>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <button
+        onClick={() => onConfirm(selected)}
+        className="spark-btn w-full py-4 text-white"
+        style={{ background: "var(--brand-gradient)", boxShadow: "0 4px 24px var(--brand-glow)" }}
+      >
+        确认画风 ✨
+      </button>
+    </motion.div>
+  );
+}
+
 // ==================== 时光快进 ====================
 
 function TimelineStage({
@@ -1514,8 +1644,7 @@ function CardStage({
   chatHistory,
   catDescription,
   catDescriptionEn,
-  catPhotoBase64,
-  catPhotoMime,
+  preloadedImage,
   onCardSaved,
   onCardShared,
   onNext,
@@ -1529,22 +1658,13 @@ function CardStage({
   chatHistory?: {from: string; text: string}[];
   catDescription?: string | null;
   catDescriptionEn?: string | null;
-  catPhotoBase64?: string | null;
-  catPhotoMime?: string | null;
+  preloadedImage?: string | null;
   onCardSaved?: () => void;
   onCardShared?: () => void;
   onNext: () => void;
 }) {
   // B. 画风选择
-  const styleOptions = [
-    { key: "anime", label: "日漫", icon: "🎌" },
-    { key: "watercolor", label: "水彩", icon: "🎨" },
-    { key: "ink", label: "水墨", icon: "🖌️" },
-    { key: "storybook", label: "绘本", icon: "📖" },
-  ];
-  const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
-  const [selectedStyle, setSelectedStyle] = useState(defaultStyles[personalityType] || "watercolor");
-  const [phase, setPhase] = useState<"style-select" | "gathering" | "reveal" | "full">("style-select");
+  const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
   const [saved, setSaved] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1567,42 +1687,16 @@ function CardStage({
   const fallbackPoem = secondaryType ? fallbackWithMbti + secondaryCoda[secondaryType] : fallbackWithMbti;
 
   const [poem, setPoem] = useState(fallbackPoem);
-  const [cardImage, setCardImage] = useState<string | null>(null);
+  // 图片从 Home 层传入（在 timeline 期间预生成）
+  const [cardImage, setCardImage] = useState<string | null>(preloadedImage || null);
   const [contentReady, setContentReady] = useState(false);
 
-  // 构造完整对话摘要（共用）
-  const conversationForApi = useMemo(() =>
-    chatHistory && chatHistory.length > 0
-      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
-      : chatReply || "",
-    [chatHistory, chatReply, catName]
-  );
-
-  // 进入 CardStage 立即用默认画风预生成图片（不等用户选画风）
-  const imageStartedRef = useRef(false);
+  // 同步 Home 层图片更新
   useEffect(() => {
-    if (imageStartedRef.current) return;
-    imageStartedRef.current = true;
-    fetch("/api/card-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        catName, personalityType,
-        catDescription: catDescriptionEn || catDescription,
-        catPhotoBase64, catPhotoMime,
-        artStyle: selectedStyle,
-        conversation: conversationForApi,
-        userProfile,
-        chapter: 1,
-      }),
-    }).then(r => r.json()).then(d => {
-      console.log("card-image api response:", d.error || (d.image ? "b64_json ok" : d.imageUrl ? "url ok" : "no image"));
-      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-      else if (d.imageUrl) setCardImage(d.imageUrl);
-    }).catch((e) => { console.error("card-image fetch error:", e); });
-  }, []);
+    if (preloadedImage && !cardImage) setCardImage(preloadedImage);
+  }, [preloadedImage]);
 
-  // P1: 预加载音效文件（在组件挂载时就开始，绕过 autoplay 限制）
+  // P1: 预加载音效文件
   useEffect(() => {
     const src = revealSounds[personalityType] || revealSounds.moon;
     const audio = new Audio(src);
@@ -1612,35 +1706,16 @@ function CardStage({
     return () => { audio.pause(); audio.src = ""; };
   }, [personalityType]);
 
-  // 用户确认风格后开始生成诗句（图片已在预生成）
-  const startGeneration = (style: string) => {
-    // 如果用户换了画风，重新生成图片
-    if (style !== selectedStyle) {
-      setCardImage(null);
-      fetch("/api/card-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          catName, personalityType,
-          catDescription: catDescriptionEn || catDescription,
-          catPhotoBase64, catPhotoMime,
-          artStyle: style,
-          conversation: conversationForApi,
-          userProfile,
-          chapter: 1,
-        }),
-      }).then(r => r.json()).then(d => {
-        if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-        else if (d.imageUrl) setCardImage(d.imageUrl);
-      }).catch(() => {});
-    }
-    setSelectedStyle(style);
-    setPhase("gathering");
+  // 进入即开始生成诗句（图片已在 timeline 期间由 Home 层预生成）
+  const poemStartedRef = useRef(false);
+  useEffect(() => {
+    if (poemStartedRef.current) return;
+    poemStartedRef.current = true;
 
-    let poemDone = false;
-    const checkDone = () => { if (poemDone) setContentReady(true); };
+    const conversationForApi = chatHistory && chatHistory.length > 0
+      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
+      : chatReply || "";
 
-    // 诗句（传完整对话）
     fetch("/api/poem", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1650,8 +1725,8 @@ function CardStage({
         conversation: conversationForApi,
         chapter: 1,
       }),
-    }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
-  };
+    }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { setContentReady(true); });
+  }, []);
 
   useEffect(() => {
     if (phase !== "gathering") return;
@@ -1694,69 +1769,6 @@ function CardStage({
       className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center overflow-y-auto hide-scrollbar"
       style={{ paddingTop: "env(safe-area-inset-top, 20px)", paddingBottom: "env(safe-area-inset-bottom, 24px)" }}
     >
-      {/* B. 画风选择 */}
-      {phase === "style-select" && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center w-full my-auto"
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-5xl mb-4"
-          >
-            {p.emoji}
-          </motion.div>
-          <h2 className="text-xl font-bold mb-2 text-white">选择灵光卡画风</h2>
-          <p className="text-sm text-white/40 mb-8">
-            为 {catName} 的故事挑一种风格
-          </p>
-
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            {styleOptions.map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setSelectedStyle(s.key)}
-                className="relative p-4 rounded-xl border transition-all active:scale-95"
-                style={{
-                  borderColor: selectedStyle === s.key ? p.color : "rgba(255,255,255,0.08)",
-                  background: selectedStyle === s.key
-                    ? `rgba(${p.colorRgb}, 0.12)`
-                    : "rgba(35,33,54,0.8)",
-                  boxShadow: selectedStyle === s.key
-                    ? `0 0 20px rgba(${p.colorRgb}, 0.15)`
-                    : "none",
-                }}
-              >
-                <span className="text-2xl mb-1 block">{s.icon}</span>
-                <span className={`text-sm font-medium ${selectedStyle === s.key ? "text-white" : "text-white/60"}`}>
-                  {s.label}
-                </span>
-                {selectedStyle === s.key && (
-                  <motion.div
-                    layoutId="style-check"
-                    className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
-                    style={{ background: p.color }}
-                  >
-                    ✓
-                  </motion.div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => startGeneration(selectedStyle)}
-            className="spark-btn w-full py-4 text-white"
-            style={{ background: "var(--brand-gradient)", boxShadow: "0 4px 24px var(--brand-glow)" }}
-          >
-            生成灵光卡 ✨
-          </button>
-        </motion.div>
-      )}
-
       {phase === "gathering" && (
         <motion.div
           initial={{ opacity: 0 }}
