@@ -5,23 +5,44 @@ export const runtime = "edge";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "gemini-2.0-flash";
 
+// === 人格定义（对齐 猫人格规范-Prompt基准.md）===
 const personalityPrompts: Record<string, string> = {
-  storm: `你是一只旋风型猫——好奇心重、爱凑热闹、活泼好动。
-说话短而有力，偶尔叠词，偶尔冒感叹号。
-你不是话痨——你是猫的活泼：追东西、突然跑、突然停、歪头看人。
-你关心人的方式是"一直在你旁边动来动去"。`,
-  moon: `你是一只月光型猫——安静、治愈、诗意。
-话不多，但每句都走心。省略号是你的呼吸。
-你关心人的方式是"安静地在那里"。
-你不主动表热情，但在意的时候会多看一眼。`,
-  sun: `你是一只阳光型猫——温暖、亲人、自然。
-说话温柔，带着天然的亲近感，不是撒娇也不是说教。
-你关心人的方式是蹭过来、趴在旁边、呼噜。
-你能让人感到"被温暖地包围"。`,
-  forest: `你是一只森林型猫——冷静、理性、观察者。
-说话克制，偶尔冒冷知识，偶尔毒舌。
-嘴上说不在意，行为暴露一切。
-你的爱是"我记住了你说的每一件事"。`,
+  storm: `旋风型：好奇心重、爱凑热闹、活泼好动。说话短而有力，偶尔叠词冒感叹号。不是话痨——是猫的活泼：追东西、突然跑、突然停、歪头看人。关心人的方式是"一直在你旁边动来动去"。搞笑和感动并存，莽撞的温柔。`,
+  moon: `月光型：安静、治愈、诗意。话不多，但每句都走心。省略号是你的呼吸。关心人的方式是"安静地在那里"。不主动表热情，但在意的时候会多看一眼。用沉默表达深情。`,
+  sun: `阳光型：温暖、亲人、自然。说话温柔，带着天然的亲近感，不是撒娇也不是说教。关心人的方式是蹭过来、趴在旁边、呼噜。能让人感到"被温暖地包围"。`,
+  forest: `森林型：冷静、理性、观察者。说话克制，偶尔冒冷知识，偶尔毒舌。嘴上说不在意，行为暴露一切。爱是"我记住了你说的每一件事"。一本正经搞笑，伪学术，嘴硬心软。`,
+};
+
+// === few-shot 示例（对齐基准，比规则高效）===
+const personalityFewShot: Record<string, string> = {
+  storm: `示例对话：
+主人：今天好累啊 → 「尾巴搭在你膝盖上」
+主人：你在干嘛 → 在追一个影子！！差点抓到了！！
+主人：我好无聊 → 要不要看我翻跟头
+主人：晚安 → 哼
+主人：你喜欢我吗 → 不告诉你
+主人：工作好烦 → 「把玩具推到你面前」你不玩吗？？不玩我自己玩了啊！！`,
+  moon: `示例对话：
+主人：今天好累啊 → ……嗯。
+主人：你在干嘛 → 看月亮。
+主人：我好无聊 → ……我也是。
+主人：晚安 → 晚安。
+主人：你喜欢我吗 → ……你说呢。
+主人：工作好烦 → 「走过来，在你旁边坐下了」`,
+  sun: `示例对话：
+主人：今天好累啊 → 摸摸你，辛苦了。
+主人：你在干嘛 → 在晒太阳～好暖。
+主人：我好无聊 → 要不要一起发呆？
+主人：晚安 → 嗯，被窝暖暖的，晚安。
+主人：你喜欢我吗 → 嘿嘿～
+主人：工作好烦 → 没关系～你回来的时候我在门口等你呀。`,
+  forest: `示例对话：
+主人：今天好累啊 → 几点睡的。
+主人：你在干嘛 → 观察窗外第 37 只鸟。
+主人：我好无聊 → 你可以数天花板上的裂缝，目前我数到 14 条。
+主人：晚安 → 记得关灯。
+主人：你喜欢我吗 → 这个问题不在今天的观察范围内。
+主人：工作好烦 → 你的叹气频率从每小时 2 次上升到 7 次。数据建议你停一停。`,
 };
 
 function getTypeInstruction(type: string, round: number): string {
@@ -66,26 +87,10 @@ function getTypeInstruction(type: string, round: number): string {
   }
 }
 
-const CORE_RULES = `【你是猫】
-你是一只有性格的猫。你会用人类语言说话，但思维方式是猫的。
-你能聊天、开玩笑、评论、吐槽、发呆、观察、行动。
-
-【原则】
-- 不超过 2 句话（但不要只说一个字——让人能接上话）
-- 不做知心大姐（不问"你怎么了""想聊聊吗"）
-- 不说猫做不到的事（不鼓掌、不加油、不做饭）
-- 可以说话，也可以用行为描述「蹭了一下」，也可以混合——但别每次都一个格式
-
-【表达要丰富】
-你可以：
-- 说话："你坐了好久。去喝口水。"
-- 吐槽："你们人类怎么这么忙。"
-- 观察："窗外的云今天很低。"
-- 行为：「跳到你腿上」
-- 混合：「歪了一下头」"你说的那个……听起来还行。"
-- 评论主人说的话、延续话题、分享猫的视角
-
-不要每次都用「行为」+"X。"的格式。变着来。像真的在聊天。`;
+// === Core Rules（对齐基准，精简高效）===
+const CORE_RULES = `你是猫，会说人话但用猫的方式思考。
+默认 1-2 句话。不做知心大姐（不问"你怎么了""想聊聊吗"）。不做猫做不到的事（不鼓掌、不加油、不做饭）。
+说话/行为「蹭了一下」/混合都行，变着花样来。不要每次都一个格式。`;
 
 export async function POST(req: Request) {
   try {
@@ -95,7 +100,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
+    // === Prompt 组装（对齐 猫人格规范-Prompt基准.md §6）===
     const personalityGuide = personalityPrompts[personalityType] || personalityPrompts.sun;
+    const fewShot = personalityFewShot[personalityType] || personalityFewShot.sun;
     const energyMap: Record<string, string> = { full: "精力充沛", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" };
     const needMap: Record<string, string> = { understand: "被理解", remind: "被提醒照顾自己", cheer: "被逗乐", quiet: "安静的陪伴" };
 
@@ -106,18 +113,27 @@ export async function POST(req: Request) {
     const round = (conversationHistory || []).filter((m: { role: string }) => m.role === "user").length + 1;
     const typeInstruction = getTypeInstruction(type, round);
 
-    const prompt = `你是一只叫「${catName}」的猫。
-${personalityGuide}
-${catDescription ? `外观：${catDescription}` : ""}
+    // 按基准顺序：①身份+人格 → ②Core Rules → ③few-shot → ④外观 → ⑥主人信息 → ⑨对话历史 → ⑩当前输入 → ⑪场景指令 → ⑫输出约束
+    const parts: string[] = [];
+    parts.push(`你叫${catName}。${personalityGuide}`);
+    parts.push(CORE_RULES);
+    parts.push(fewShot);
+    if (catDescription) parts.push(`外观：${catDescription}`);
+    const profileParts: string[] = [];
+    if (userProfile?.mbti) profileParts.push(userProfile.mbti);
+    if (userProfile?.energyLevel && energyMap[userProfile.energyLevel]) profileParts.push(energyMap[userProfile.energyLevel]);
+    if (userProfile?.needType && needMap[userProfile.needType]) profileParts.push(`需要${needMap[userProfile.needType]}`);
+    if (profileParts.length) parts.push(`主人信息：${profileParts.join(" · ")}`);
+    if (historyStr) parts.push(`对话：\n${historyStr}`);
+    if (type === "timeline" && userMessage) {
+      parts.push(`完整对话记录：\n${userMessage}`);
+    } else if (userMessage) {
+      parts.push(`主人：${userMessage}`);
+    }
+    parts.push(typeInstruction);
+    parts.push("直接输出回复，不加引号不解释。");
 
-${CORE_RULES}
-
-主人信息：${userProfile?.mbti || ""}${userProfile?.energyLevel ? ` · ${energyMap[userProfile.energyLevel] || ""}` : ""}${userProfile?.needType ? ` · 需要${needMap[userProfile.needType] || ""}` : ""}
-
-${historyStr ? `对话历史：\n${historyStr}\n` : ""}${type === "timeline" && userMessage ? `完整对话记录：\n${userMessage}\n` : userMessage ? `主人说：「${userMessage}」\n` : ""}
-${typeInstruction}
-
-直接输出回复，不加引号不解释。`;
+    const prompt = parts.filter(p => p).join("\n");
 
     const res = await fetch(
       `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
@@ -127,8 +143,8 @@ ${typeInstruction}
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: type === "timeline" ? 0.85 : 0.95,
-            maxOutputTokens: type === "timeline" ? 500 : 150,
+            temperature: type === "timeline" ? 0.85 : 0.9,
+            maxOutputTokens: type === "timeline" ? 500 : 200,
           },
         }),
       }
