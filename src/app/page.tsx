@@ -47,6 +47,7 @@ export default function Home() {
   const [demoStartTime] = useState(Date.now());
   const [cardSaved, setCardSaved] = useState(false);
   const [cardShared, setCardShared] = useState(false);
+  const [chosenPath, setChosenPath] = useState<"wechat" | "demo" | null>(null);
 
   // 画风选择 & 图片预生成（提升到 Home 层）
   const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
@@ -163,7 +164,8 @@ export default function Home() {
             personality={personality}
             personalityType={personalityType}
             userProfile={userProfile}
-            onContinueDemo={() => setStage("chat")}
+            onContinueDemo={() => { setChosenPath("demo"); setStage("chat"); }}
+            onChooseWechat={() => { setChosenPath("wechat"); setStage("exit"); }}
           />
         )}
 
@@ -236,6 +238,7 @@ export default function Home() {
             durationMs={Date.now() - demoStartTime}
             cardSaved={cardSaved}
             cardShared={cardShared}
+            chosenPath={chosenPath}
           />
         )}
       </AnimatePresence>
@@ -780,12 +783,14 @@ function WeChatBridgeStage({
   personalityType,
   userProfile,
   onContinueDemo,
+  onChooseWechat,
 }: {
   catName: string;
   personality: Personality;
   personalityType: PersonalityType;
   userProfile?: UserProfile;
   onContinueDemo: () => void;
+  onChooseWechat: () => void;
 }) {
   const [chosen, setChosen] = useState<"none" | "wechat" | "demo">("none");
   const [copied, setCopied] = useState(false);
@@ -928,40 +933,55 @@ function WeChatBridgeStage({
                     {userProfile?.needType && <div>💡 <span className="text-white/80">{needLabel[userProfile.needType]}</span></div>}
                   </div>
                 </div>
+
+                {/* 确认 CTA */}
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  onClick={(e) => { e.stopPropagation(); onChooseWechat(); }}
+                  className="w-full mt-4 py-3.5 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.98]"
+                  style={{
+                    background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
+                    boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.35)`,
+                  }}
+                >
+                  已复制，开始 7 日旅程 →
+                </motion.button>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
 
-        {/* Path B — 继续 Demo 体验 */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.7 }}
-          onClick={() => { setChosen("demo"); setTimeout(() => onContinueDemo(), 600); }}
-          className={`relative backdrop-blur-xl rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 ${
-            chosen === "demo"
-              ? "border-white/30"
-              : chosen === "wechat"
-              ? "border-white/5 opacity-50"
-              : "border-white/10 hover:border-white/20"
-          }`}
-          style={{ background: "rgba(35,33,54,0.7)" }}
-        >
-          <div className="flex items-start gap-3">
-            <span className="text-3xl">🎬</span>
-            <div>
-              <h3 className="font-bold text-lg text-white/90">先看完 Demo</h3>
-              <p className="text-white/40 text-sm mt-1">
-                预览完整体验：对话 → 时间线 → 灵光卡，约 3 分钟
-              </p>
+        {/* Path B — 继续 Demo 体验（选了微信就隐藏） */}
+        {chosen !== "wechat" && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.7 }}
+            onClick={() => { setChosen("demo"); setTimeout(() => onContinueDemo(), 600); }}
+            className={`relative backdrop-blur-xl rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 ${
+              chosen === "demo"
+                ? "border-white/30"
+                : "border-white/10 hover:border-white/20"
+            }`}
+            style={{ background: "rgba(35,33,54,0.7)" }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-3xl">🎬</span>
+              <div>
+                <h3 className="font-bold text-lg text-white/90">先看完 Demo</h3>
+                <p className="text-white/40 text-sm mt-1">
+                  预览完整体验：对话 → 时间线 → 灵光卡，约 3 分钟
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs mt-3">
-            <span className="px-2 py-1 rounded-full bg-white/5 text-white/40">👀 预览模式</span>
-            <span className="px-2 py-1 rounded-full bg-white/5 text-white/40">⚡ 3 分钟快速体验</span>
-          </div>
-        </motion.div>
+            <div className="flex flex-wrap gap-2 text-xs mt-3">
+              <span className="px-2 py-1 rounded-full bg-white/5 text-white/40">👀 预览模式</span>
+              <span className="px-2 py-1 rounded-full bg-white/5 text-white/40">⚡ 3 分钟快速体验</span>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* 底部提示 */}
@@ -972,7 +992,7 @@ function WeChatBridgeStage({
         className="text-center text-white/20 text-xs mt-4 pb-4"
       >
         {chosen === "wechat"
-          ? "添加后可以返回继续体验 Demo 哦 ✨"
+          ? `复制微信号后点击上方按钮，${catName}在微信等你`
           : "看完 Demo 随时可以来微信找我 💬"}
       </motion.p>
     </motion.div>
@@ -2421,6 +2441,7 @@ function ExitStage({
   durationMs,
   cardSaved,
   cardShared,
+  chosenPath,
 }: {
   catName: string;
   personality: Personality;
@@ -2430,8 +2451,11 @@ function ExitStage({
   durationMs: number;
   cardSaved: boolean;
   cardShared: boolean;
+  chosenPath: "wechat" | "demo" | null;
 }) {
-  const [phase, setPhase] = useState<"feedback" | "reply" | "questions" | "thanks">("feedback");
+  const [phase, setPhase] = useState<"feedback" | "reply" | "questions" | "thanks">(
+    chosenPath === "wechat" ? "thanks" : "feedback"
+  );
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [contact, setContact] = useState("");
   const [nickname, setNickname] = useState("");
@@ -2700,7 +2724,9 @@ function ExitStage({
             transition={{ delay: 0.3 }}
             className="text-2xl font-bold mb-2"
           >
-            谢谢你认识{catName}
+            {chosenPath === "wechat"
+              ? `${catName}在微信等你`
+              : `谢谢你认识${catName}`}
           </motion.h2>
 
           <motion.p
@@ -2714,92 +2740,120 @@ function ExitStage({
               textShadow: `0 0 20px rgba(${p.colorRgb}, 0.3)`,
             }}
           >
-            「每一个灵魂都值得被看见」
+            {chosenPath === "wechat"
+              ? `添加好友后备注「${catName}」，7 天旅程即将开始`
+              : "「每一个灵魂都值得被看见」"}
           </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="bg-[#232136]/60 backdrop-blur rounded-2xl p-6 border border-white/5 mb-6"
-          >
-            <p className="text-white/70 text-sm leading-relaxed mb-4">
-              Spark7 正在打造一个让人与动物灵魂相遇的地方。
-              <br />
-              不是工具，不是玩具，是真正的理解与陪伴。
-            </p>
-            <div className="flex items-center justify-center gap-6 text-white/30 text-xs">
-              <span>🐱 4 种灵魂人格</span>
-              <span>📝 灵光卡收藏</span>
-              <span>💛 拒绝弃养</span>
-            </div>
-          </motion.div>
-
-          {/* 折叠式等待列表 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.0 }}
-            className="mb-6"
-          >
-            {!waitlistSubmitted ? (
-              <>
-                <button
-                  onClick={() => setWaitlistExpanded(!waitlistExpanded)}
-                  className="text-sm transition-colors"
-                  style={{ color: waitlistExpanded ? p.color : "rgba(255,255,255,0.4)" }}
-                >
-                  {waitlistExpanded ? "收起 ↑" : "想第一时间体验完整版？ ↓"}
-                </button>
-
-                {waitlistExpanded && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    transition={{ duration: 0.3 }}
-                    className="mt-4 bg-[#232136]/60 backdrop-blur rounded-2xl p-5 border border-white/5 space-y-3"
-                  >
-                    <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="你的昵称"
-                      className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
-                      style={{ focusRingColor: p.color } as React.CSSProperties}
-                    />
-                    <input
-                      type="text"
-                      value={contact}
-                      onChange={(e) => setContact(e.target.value)}
-                      placeholder="微信号 / 手机号 / 邮箱"
-                      className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
-                      style={{ focusRingColor: p.color } as React.CSSProperties}
-                    />
-                    <button
-                      onClick={handleWaitlistSubmit}
-                      disabled={!contact.trim()}
-                      className="w-full py-3 rounded-xl text-sm font-medium text-white disabled:opacity-30 transition-all"
-                      style={{
-                        background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
-                        boxShadow: contact.trim() ? `0 4px 16px rgba(${p.colorRgb}, 0.3)` : "none",
-                      }}
-                    >
-                      提交 ✨
-                    </button>
-                  </motion.div>
-                )}
-              </>
-            ) : (
-              <motion.p
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-sm"
-                style={{ color: p.color }}
+          {chosenPath === "wechat" ? (
+            /* 微信路径：简洁确认 */
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="bg-[#232136]/60 backdrop-blur rounded-2xl p-6 border border-white/5 mb-6"
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-2 text-white/70 text-sm">
+                  <span>💬</span>
+                  <span>微信号：</span>
+                  <span className="font-mono font-bold text-lg" style={{ color: p.color }}>yioi0101</span>
+                </div>
+                <div className="flex flex-wrap justify-center gap-4 text-white/30 text-xs mt-2">
+                  <span>📱 每天 1 条消息</span>
+                  <span>🎴 第 7 天灵光卡</span>
+                  <span>🐱 真实对话互动</span>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            /* Demo 路径：原有内容 + waitlist */
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8 }}
+                className="bg-[#232136]/60 backdrop-blur rounded-2xl p-6 border border-white/5 mb-6"
               >
-                ✓ 已记录，{catName}会第一时间找到你
-              </motion.p>
-            )}
-          </motion.div>
+                <p className="text-white/70 text-sm leading-relaxed mb-4">
+                  Spark7 正在打造一个让人与动物灵魂相遇的地方。
+                  <br />
+                  不是工具，不是玩具，是真正的理解与陪伴。
+                </p>
+                <div className="flex items-center justify-center gap-6 text-white/30 text-xs">
+                  <span>🐱 4 种灵魂人格</span>
+                  <span>📝 灵光卡收藏</span>
+                  <span>💛 拒绝弃养</span>
+                </div>
+              </motion.div>
+
+              {/* 折叠式等待列表 */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.0 }}
+                className="mb-6"
+              >
+                {!waitlistSubmitted ? (
+                  <>
+                    <button
+                      onClick={() => setWaitlistExpanded(!waitlistExpanded)}
+                      className="text-sm transition-colors"
+                      style={{ color: waitlistExpanded ? p.color : "rgba(255,255,255,0.4)" }}
+                    >
+                      {waitlistExpanded ? "收起 ↑" : "想第一时间体验完整版？ ↓"}
+                    </button>
+
+                    {waitlistExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        transition={{ duration: 0.3 }}
+                        className="mt-4 bg-[#232136]/60 backdrop-blur rounded-2xl p-5 border border-white/5 space-y-3"
+                      >
+                        <input
+                          type="text"
+                          value={nickname}
+                          onChange={(e) => setNickname(e.target.value)}
+                          placeholder="你的昵称"
+                          className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
+                          style={{ focusRingColor: p.color } as React.CSSProperties}
+                        />
+                        <input
+                          type="text"
+                          value={contact}
+                          onChange={(e) => setContact(e.target.value)}
+                          placeholder="微信号 / 手机号 / 邮箱"
+                          className="w-full bg-[#1a1826] text-center py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 text-sm"
+                          style={{ focusRingColor: p.color } as React.CSSProperties}
+                        />
+                        <button
+                          onClick={handleWaitlistSubmit}
+                          disabled={!contact.trim()}
+                          className="w-full py-3 rounded-xl text-sm font-medium text-white disabled:opacity-30 transition-all"
+                          style={{
+                            background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
+                            boxShadow: contact.trim() ? `0 4px 16px rgba(${p.colorRgb}, 0.3)` : "none",
+                          }}
+                        >
+                          提交 ✨
+                        </button>
+                      </motion.div>
+                    )}
+                  </>
+                ) : (
+                  <motion.p
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-sm"
+                    style={{ color: p.color }}
+                  >
+                    ✓ 已记录，{catName}会第一时间找到你
+                  </motion.p>
+                )}
+              </motion.div>
+            </>
+          )}
 
           <motion.button
             initial={{ opacity: 0 }}
