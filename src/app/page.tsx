@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   personalities,
@@ -1570,20 +1570,75 @@ function CardStage({
   const [cardImage, setCardImage] = useState<string | null>(null);
   const [contentReady, setContentReady] = useState(false);
 
-  // 用户确认风格后开始生成
+  // 构造完整对话摘要（共用）
+  const conversationForApi = useMemo(() =>
+    chatHistory && chatHistory.length > 0
+      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
+      : chatReply || "",
+    [chatHistory, chatReply, catName]
+  );
+
+  // 进入 CardStage 立即用默认画风预生成图片（不等用户选画风）
+  const imageStartedRef = useRef(false);
+  useEffect(() => {
+    if (imageStartedRef.current) return;
+    imageStartedRef.current = true;
+    fetch("/api/card-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        catName, personalityType,
+        catDescription: catDescriptionEn || catDescription,
+        catPhotoBase64, catPhotoMime,
+        artStyle: selectedStyle,
+        conversation: conversationForApi,
+        userProfile,
+        chapter: 1,
+      }),
+    }).then(r => r.json()).then(d => {
+      console.log("card-image api response:", d.error || (d.image ? "b64_json ok" : d.imageUrl ? "url ok" : "no image"));
+      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
+      else if (d.imageUrl) setCardImage(d.imageUrl);
+    }).catch((e) => { console.error("card-image fetch error:", e); });
+  }, []);
+
+  // P1: 预加载音效文件（在组件挂载时就开始，绕过 autoplay 限制）
+  useEffect(() => {
+    const src = revealSounds[personalityType] || revealSounds.moon;
+    const audio = new Audio(src);
+    audio.preload = "auto";
+    audio.volume = 0.4;
+    audioRef.current = audio;
+    return () => { audio.pause(); audio.src = ""; };
+  }, [personalityType]);
+
+  // 用户确认风格后开始生成诗句（图片已在预生成）
   const startGeneration = (style: string) => {
+    // 如果用户换了画风，重新生成图片
+    if (style !== selectedStyle) {
+      setCardImage(null);
+      fetch("/api/card-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          catName, personalityType,
+          catDescription: catDescriptionEn || catDescription,
+          catPhotoBase64, catPhotoMime,
+          artStyle: style,
+          conversation: conversationForApi,
+          userProfile,
+          chapter: 1,
+        }),
+      }).then(r => r.json()).then(d => {
+        if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
+        else if (d.imageUrl) setCardImage(d.imageUrl);
+      }).catch(() => {});
+    }
     setSelectedStyle(style);
     setPhase("gathering");
 
     let poemDone = false;
-    let imageDone = false;
-    // poem 完成就展示卡片（图片异步补位，不阻塞 reveal）
     const checkDone = () => { if (poemDone) setContentReady(true); };
-
-    // 构造完整对话摘要（用户+猫双方，给 poem 和 image 共用）
-    const conversationForApi = chatHistory && chatHistory.length > 0
-      ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
-      : chatReply || "";
 
     // 诗句（传完整对话）
     fetch("/api/poem", {
@@ -1596,25 +1651,6 @@ function CardStage({
         chapter: 1,
       }),
     }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { poemDone = true; checkDone(); });
-
-    // 图片（传完整对话 + 画风 + 英文描述 + 原始猫照）
-    fetch("/api/card-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        catName, personalityType,
-        catDescription: catDescriptionEn || catDescription,
-        catPhotoBase64, catPhotoMime,
-        artStyle: style,
-        conversation: conversationForApi,
-        userProfile,
-        chapter: 1,
-      }),
-    }).then(r => r.json()).then(d => {
-      console.log("card-image api response:", d.error || (d.image ? "b64_json ok" : d.imageUrl ? "url ok" : "no image"));
-      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-      else if (d.imageUrl) setCardImage(d.imageUrl);
-    }).catch((e) => { console.error("card-image fetch error:", e); }).finally(() => { imageDone = true; checkDone(); });
   };
 
   useEffect(() => {
@@ -1634,16 +1670,17 @@ function CardStage({
 
   useEffect(() => {
     if (phase === "reveal") {
-      // P1: 播放人格揭晓音效
-      const audio = new Audio(revealSounds[personalityType] || revealSounds.moon);
-      audio.volume = 0.4;
-      audioRef.current = audio;
-      audio.play().catch(() => {});
+      // P1: 播放预加载的音效（已在用户选画风时通过交互上下文解锁）
+      const audio = audioRef.current;
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
 
       const t = setTimeout(() => setPhase("full"), 1000);
       return () => {
         clearTimeout(t);
-        audioRef.current?.pause();
+        audio?.pause();
       };
     }
   }, [phase]);
@@ -2072,21 +2109,31 @@ function CardStage({
             </div>
           </motion.div>
 
-          {/* 反馈入口 · 主按钮 */}
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 0.3 + lines.length * 0.18 + 1.2, duration: 0.5 }}
-            onClick={onNext}
-            className="flex-shrink-0 w-full mt-4 py-4 text-[15px] font-medium rounded-2xl transition-all active:scale-[0.98]"
-            style={{
-              background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
-              color: "#fff",
-              boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.35), 0 1px 3px rgba(0,0,0,0.2)`,
-            }}
-          >
-            {catName} 想听听你的感受 💬
-          </motion.button>
+          {/* 反馈入口 · 主按钮 · 等图片加载完才显示 */}
+          {cardImage ? (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={phase === "full" ? { opacity: 1, y: 0 } : {}}
+              transition={{ delay: 0.3 + lines.length * 0.18 + 1.2, duration: 0.5 }}
+              onClick={onNext}
+              className="flex-shrink-0 w-full mt-4 py-4 text-[15px] font-medium rounded-2xl transition-all active:scale-[0.98]"
+              style={{
+                background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
+                color: "#fff",
+                boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.35), 0 1px 3px rgba(0,0,0,0.2)`,
+              }}
+            >
+              {catName} 想听听你的感受 💬
+            </motion.button>
+          ) : phase === "full" ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex-shrink-0 w-full mt-4 py-4 text-center text-[13px] text-white/30"
+            >
+              正在生成配图…
+            </motion.div>
+          ) : null}
         </motion.div>
       )}
     </motion.div>
