@@ -43,6 +43,23 @@ export default function Home() {
   const [catPhotoMime, setCatPhotoMime] = useState<string | null>(null);
   const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
 
+  // 模式：?mode=wechat 走精简流程（测试→画像→加微信）
+  const [isWechatMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("mode") === "wechat";
+  });
+
+  // Session ID for tracking
+  const [sessionId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    let id = localStorage.getItem("spark7_session_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("spark7_session_id", id);
+    }
+    return id;
+  });
+
   // 验证改造：新增状态
   const [demoStartTime] = useState(Date.now());
   const [cardSaved, setCardSaved] = useState(false);
@@ -152,7 +169,8 @@ export default function Home() {
             personality={personality}
             onComplete={(profile) => {
               setUserProfile(profile);
-              setStage("wechat");
+              // 完整版跳过 wechat 分叉，直接进对话；微信版进 wechat 页
+              setStage(isWechatMode ? "wechat" : "chat");
             }}
           />
         )}
@@ -164,6 +182,8 @@ export default function Home() {
             personality={personality}
             personalityType={personalityType}
             userProfile={userProfile}
+            catDescription={catDescription}
+            wechatOnly={isWechatMode}
             onContinueDemo={() => { setChosenPath("demo"); setStage("chat"); }}
             onChooseWechat={() => { setChosenPath("wechat"); setStage("exit"); }}
           />
@@ -230,6 +250,7 @@ export default function Home() {
         {stage === "exit" && (
           <ExitStage
             key="exit"
+            sessionId={sessionId}
             catName={catName}
             personality={personality}
             personalityType={personalityType}
@@ -606,14 +627,6 @@ function TestStage({
             onClick={() => onSelect(idx)}
             className="spark-option w-full text-left leading-relaxed"
             style={{ fontSize: "var(--text-base)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(168,85,247,0.25)";
-              e.currentTarget.style.boxShadow = "inset 0 0 30px rgba(168,85,247,0.03), 0 0 15px rgba(168,85,247,0.06)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border-subtle)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
           >
             {opt.text}
           </motion.button>
@@ -782,6 +795,8 @@ function WeChatBridgeStage({
   personality: p,
   personalityType,
   userProfile,
+  catDescription,
+  wechatOnly = false,
   onContinueDemo,
   onChooseWechat,
 }: {
@@ -789,13 +804,54 @@ function WeChatBridgeStage({
   personality: Personality;
   personalityType: PersonalityType;
   userProfile?: UserProfile;
+  catDescription?: string | null;
+  wechatOnly?: boolean;
   onContinueDemo: () => void;
   onChooseWechat: () => void;
 }) {
-  const [chosen, setChosen] = useState<"none" | "wechat" | "demo">("none");
+  const [chosen, setChosen] = useState<"none" | "wechat" | "demo">(wechatOnly ? "wechat" : "none");
   const [copied, setCopied] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState(false);
 
   const wechatId = "yioi0101";
+
+  // 运营工具后台地址（同域下的 API 代理，或直接填运营工具地址）
+  const OPS_API = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ops") || "";
+
+  // 把用户信息推送到运营工具
+  const syncToOps = async () => {
+    if (synced || !OPS_API) return;
+    setSyncing(true);
+    try {
+      const scheduleMap: Record<string, string> = { early: "朝九晚六", late: "早出晚归", home: "常在家", irregular: "不固定" };
+      const energyMap: Record<string, string> = { full: "电量充足", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" };
+      const needMap: Record<string, string> = { understand: "被理解", remind: "被提醒", cheer: "被逗乐", quiet: "安静陪伴" };
+      const userId = `wx_${Date.now().toString(36)}`;
+      await fetch(`${OPS_API}/api/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: userId,
+          catName,
+          personality: personalityType,
+          ownerName: "微信用户",
+          ownerSchedule: userProfile?.schedule ? scheduleMap[userProfile.schedule] || userProfile.schedule : "未知",
+          ownerStatus: [
+            userProfile?.energyLevel ? energyMap[userProfile.energyLevel] : "",
+            userProfile?.needType ? `需要${needMap[userProfile.needType]}` : "",
+          ].filter(Boolean).join("，") || "未知",
+          catDescription: catDescription || "",
+          startDate: new Date().toISOString().split("T")[0],
+          notes: userProfile?.mbti ? `MBTI: ${userProfile.mbti}` : "",
+        }),
+      });
+      setSynced(true);
+    } catch (e) {
+      console.error("sync to ops failed:", e);
+    }
+    setSyncing(false);
+  };
 
   const handleCopy = async () => {
     try {
@@ -939,22 +995,23 @@ function WeChatBridgeStage({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  onClick={(e) => { e.stopPropagation(); onChooseWechat(); }}
-                  className="w-full mt-4 py-3.5 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.98]"
+                  onClick={(e) => { e.stopPropagation(); syncToOps(); onChooseWechat(); }}
+                  disabled={syncing}
+                  className="w-full mt-4 py-3.5 rounded-xl text-sm font-bold text-white transition-all active:scale-[0.98] disabled:opacity-60"
                   style={{
                     background: `linear-gradient(135deg, ${p.color}, ${p.color}dd)`,
                     boxShadow: `0 4px 20px rgba(${p.colorRgb}, 0.35)`,
                   }}
                 >
-                  已复制，开始 7 日旅程 →
+                  {syncing ? "⏳ 同步中..." : "已复制，开始 7 日旅程 →"}
                 </motion.button>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
 
-        {/* Path B — 继续 Demo 体验（选了微信就隐藏） */}
-        {chosen !== "wechat" && (
+        {/* Path B — 继续 Demo 体验（wechat模式或选了微信就隐藏） */}
+        {!wechatOnly && chosen !== "wechat" && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -1245,14 +1302,6 @@ function ProfileStage({
                 onClick={() => handleAnswer(PROFILE_QUESTIONS[qIndex].key, opt.value)}
                 className="spark-option w-full text-left leading-relaxed"
                 style={{ fontSize: "var(--text-base)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${p.color}30`;
-                  e.currentTarget.style.boxShadow = `inset 0 0 20px rgba(255,255,255,0.02), 0 0 10px ${p.color}10`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-subtle)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
               >
                 <span className="mr-2">{opt.emoji}</span>{opt.text}
               </motion.button>
@@ -2433,6 +2482,7 @@ const catFeedbackReply: Record<PersonalityType, Record<string, string>> = {
 };
 
 function ExitStage({
+  sessionId,
   catName,
   personality: p,
   personalityType,
@@ -2443,6 +2493,7 @@ function ExitStage({
   cardShared,
   chosenPath,
 }: {
+  sessionId: string;
   catName: string;
   personality: Personality;
   personalityType: PersonalityType;
@@ -2489,6 +2540,7 @@ function ExitStage({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          sessionId,
           catName,
           personalityType,
           secondaryType,
