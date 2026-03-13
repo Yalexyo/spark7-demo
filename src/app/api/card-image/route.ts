@@ -132,7 +132,8 @@ export async function POST(req: Request) {
     const imagePrompt = `${sceneDescription}. Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}. ${catInstruction} No text, no watermark, no signature.`;
 
     let mode: string;
-    let imageData: Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let imageData: any;
 
     if (catPhotoUrl) {
       // ── Kontext-Pro：图生图，保真度高（保留毛色/花纹/体型）──
@@ -175,7 +176,7 @@ export async function POST(req: Request) {
       console.log("schnell status:", schnellRes.status, "keys:", Object.keys(imageData || {}));
     }
 
-    const imageUrl = imageData?.images?.[0]?.url as string | undefined;
+    const imageUrl = imageData?.images?.[0]?.url;
     if (imageUrl) {
       // 下载图片转 base64（避免国内用户加载 file.302.ai 失败）
       const downloaded = await downloadImageAsBase64(imageUrl);
@@ -185,7 +186,7 @@ export async function POST(req: Request) {
     }
 
     console.error("image gen failed:", JSON.stringify(imageData).slice(0, 300));
-    return NextResponse.json({ error: (imageData as Record<string, Record<string, string>>)?.error?.message || "image generation failed" }, { status: 500 });
+    return NextResponse.json({ error: imageData?.error?.message || "image generation failed" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });
