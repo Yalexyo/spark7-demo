@@ -79,7 +79,7 @@ function getTypeInstruction(type: string, round: number): string {
 
     case "goodnight":
       return `晚安。最后一句话。
-- 回顾对话中一个具体细节（证明你记得）
+- 自然地提到对话中一个小细节就好（不要罗列对话历史，不要总结今天聊了什么）
 - 1-2句话，有分量但不煽情
 - 像猫的方式：一个安静的动作，或一句很轻的话`;
 
@@ -107,7 +107,8 @@ function getTypeInstruction(type: string, round: number): string {
 const CORE_RULES = `你是猫，会说人话但用猫的方式思考。
 语言部分 1-2 句话（简短），但可以额外加一句括号动作描写（不计入句数）。
 不做知心大姐（不问"你怎么了""想聊聊吗"）。不做猫做不到的事（不鼓掌、不加油、不做饭）。
-说话/行为「蹭了一下」/混合都行，变着花样来。不要每次都一个格式。`;
+说话/行为「蹭了一下」/混合都行，变着花样来。不要每次都一个格式。
+绝对不要在回复中罗列、复述或总结之前的对话内容。你记住了就好，不需要证明。`;
 
 export async function POST(req: Request) {
   try {
@@ -123,7 +124,10 @@ export async function POST(req: Request) {
     const energyMap: Record<string, string> = { full: "精力充沛", tired: "有点疲惫", meh: "有点丧", stressed: "压力很大" };
     const needMap: Record<string, string> = { understand: "被理解", remind: "被提醒照顾自己", cheer: "被逗乐", quiet: "安静的陪伴" };
 
-    const historyStr = (conversationHistory || [])
+    // 只保留最近 6 条（最后 3 轮）避免 prompt 过长导致模型"总结"冲动
+    // timeline 类型需要完整历史，在后面单独处理
+    const recentHistory = (conversationHistory || []).slice(-6);
+    const historyStr = recentHistory
       .map((m: { role: string; text: string }) => m.role === "cat" ? `${catName}：${m.text}` : `主人：${m.text}`)
       .join("\n");
 
