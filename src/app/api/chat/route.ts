@@ -135,7 +135,7 @@ export async function POST(req: Request) {
     parts.push(CORE_RULES);
     parts.push(fewShot);
     if (catDescription) parts.push(`外观：${catDescription}`);
-    if (catPersonalityDesc) parts.push(`猫咪个性：${catPersonalityDesc}\n在对话中自然融入上述习惯和细节（比如行为描写、语气词选择），但不要生硬复述。`);
+    if (catPersonalityDesc) parts.push(`【重要】猫咪的独特个性和习惯：${catPersonalityDesc}\n你必须在每次回复中体现至少一个上述习惯或特征。方式包括：用行为描写开场（如"（趴在键盘上翻了个身）"）、在对话中提到相关习惯、用符合个性的语气词。不要原封不动复述，而是像真的有这些习惯的猫一样自然表达。`);
     const profileParts: string[] = [];
     if (userProfile?.mbti) profileParts.push(userProfile.mbti);
     if (userProfile?.energyLevel && energyMap[userProfile.energyLevel]) profileParts.push(energyMap[userProfile.energyLevel]);
