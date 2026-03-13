@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Flux-Schnell via 302.AI: 图生图 ~8s，性价比最高
-// fallback: Flux-Schnell 纯文生图（无猫照时）
+// 有猫照 → Flux-Kontext-Pro (img2img, 高保真, ~20s, ¥0.36/张)
+// 无猫照 → Flux-Schnell (txt2img, ~8s, ¥0.03/张)
 export const maxDuration = 60;
 
 const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
@@ -125,42 +125,57 @@ export async function POST(req: Request) {
     console.log("sceneText:", sceneText?.slice(0, 100) || "NONE (using fallback)");
     const sceneDescription = sceneText || `${catAppearance}${personalityHint}, ${ps.scene}`;
 
-    // ===== Flux-Schnell（图生图 + 纯文生图统一用一个模型）=====
-    // 场景描述放最前面（权重最高），画风和猫特征辅助
-    // 有猫照时强调保留外观；无猫照时靠文字描述
+    // ===== 图片生成：有猫照 → Kontext-Pro（高保真图生图）；无猫照 → Schnell（快速文生图）=====
     const catInstruction = catPhotoBase64
       ? `The cat MUST match the reference photo exactly — same fur color, pattern, and markings. Do NOT change the cat's color.`
       : `The cat has ${catAppearance} features.`;
     const imagePrompt = `${sceneDescription}. Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}. ${catInstruction} No text, no watermark, no signature.`;
 
-    console.log("using Flux-Schnell", catPhotoUrl ? "(img2img)" : "(txt2img)");
-    console.log("prompt:", imagePrompt.slice(0, 200));
+    let mode: string;
+    let imageData: Record<string, unknown>;
 
-    const schnellBody: Record<string, unknown> = {
-      prompt: imagePrompt,
-      output_format: "jpeg",
-    };
-
-    // 有猫照 → 图生图模式（image_prompt_strength 控制保真度）
     if (catPhotoUrl) {
-      schnellBody.image_url = catPhotoUrl;
-      schnellBody.image_prompt_strength = 0.65; // 高保真：猫照外貌特征必须严格匹配
+      // ── Kontext-Pro：图生图，保真度高（保留毛色/花纹/体型）──
+      mode = "img2img-kontext";
+      console.log("using Flux-Kontext-Pro (img2img), catPhotoUrl:", catPhotoUrl.slice(0, 80));
+      console.log("prompt:", imagePrompt.slice(0, 200));
+
+      const kontextRes = await fetch(`${API_302}/302/submit/flux-kontext-pro`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          image_url: catPhotoUrl,
+          output_format: "jpeg",
+        }),
+      });
+      imageData = await kontextRes.json();
+      console.log("kontext status:", kontextRes.status, "keys:", Object.keys(imageData || {}));
+    } else {
+      // ── Schnell：纯文生图（无猫照 fallback）──
+      mode = "txt2img-schnell";
+      console.log("using Flux-Schnell (txt2img, no cat photo)");
+      console.log("prompt:", imagePrompt.slice(0, 200));
+
+      const schnellRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          output_format: "jpeg",
+        }),
+      });
+      imageData = await schnellRes.json();
+      console.log("schnell status:", schnellRes.status, "keys:", Object.keys(imageData || {}));
     }
 
-    const imageRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(schnellBody),
-    });
-
-    const imageData = await imageRes.json();
-    console.log("schnell status:", imageRes.status, "keys:", Object.keys(imageData || {}));
-
-    const mode = catPhotoUrl ? "img2img" : "txt2img";
-    const imageUrl = imageData?.images?.[0]?.url;
+    const imageUrl = imageData?.images?.[0]?.url as string | undefined;
     if (imageUrl) {
       // 下载图片转 base64（避免国内用户加载 file.302.ai 失败）
       const downloaded = await downloadImageAsBase64(imageUrl);
@@ -169,8 +184,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ imageUrl, mode });
     }
 
-    console.error("schnell failed:", JSON.stringify(imageData).slice(0, 300));
-    return NextResponse.json({ error: imageData?.error?.message || "image generation failed" }, { status: 500 });
+    console.error("image gen failed:", JSON.stringify(imageData).slice(0, 300));
+    return NextResponse.json({ error: (imageData as Record<string, Record<string, string>>)?.error?.message || "image generation failed" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });
