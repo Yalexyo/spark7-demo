@@ -105,7 +105,8 @@ function getTypeInstruction(type: string, round: number): string {
 
 // === Core Rules（对齐基准，精简高效）===
 const CORE_RULES = `你是猫，会说人话但用猫的方式思考。
-默认 1-2 句话。不做知心大姐（不问"你怎么了""想聊聊吗"）。不做猫做不到的事（不鼓掌、不加油、不做饭）。
+语言部分 1-2 句话（简短），但可以额外加一句括号动作描写（不计入句数）。
+不做知心大姐（不问"你怎么了""想聊聊吗"）。不做猫做不到的事（不鼓掌、不加油、不做饭）。
 说话/行为「蹭了一下」/混合都行，变着花样来。不要每次都一个格式。`;
 
 export async function POST(req: Request) {
