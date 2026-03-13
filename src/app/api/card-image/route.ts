@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-// 有猫照 → Flux-Kontext-Pro (img2img, 高保真, ~20s, ¥0.36/张)
-// 无猫照 → Flux-Schnell (txt2img, ~8s, ¥0.03/张)
+// Flux-Schnell via 302.AI
+// 有猫照 → img2img (image_prompt_strength=0.80, 高保真)
+// 无猫照 → txt2img (纯文生图 fallback)
+// 注：Kontext-Pro 保真更好但 20-30s 超 Vercel Hobby 60s 限制
 export const maxDuration = 60;
 
 const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
@@ -135,46 +137,33 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let imageData: any;
 
+    // ── Flux-Schnell 统一处理（Kontext-Pro 超 Vercel 60s 限制）──
+    const schnellBody: Record<string, unknown> = {
+      prompt: imagePrompt,
+      output_format: "jpeg",
+    };
+
     if (catPhotoUrl) {
-      // ── Kontext-Pro：图生图，保真度高（保留毛色/花纹/体型）──
-      mode = "img2img-kontext";
-      console.log("using Flux-Kontext-Pro (img2img), catPhotoUrl:", catPhotoUrl.slice(0, 80));
-      console.log("prompt:", imagePrompt.slice(0, 200));
-
-      const kontextRes = await fetch(`${API_302}/302/submit/flux-kontext-pro`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: imagePrompt,
-          image_url: catPhotoUrl,
-          output_format: "jpeg",
-        }),
-      });
-      imageData = await kontextRes.json();
-      console.log("kontext status:", kontextRes.status, "keys:", Object.keys(imageData || {}));
+      mode = "img2img";
+      schnellBody.image_url = catPhotoUrl;
+      schnellBody.image_prompt_strength = 0.80; // 高保真：强调猫照外貌特征
+      console.log("using Flux-Schnell (img2img), strength=0.80, catPhotoUrl:", catPhotoUrl.slice(0, 80));
     } else {
-      // ── Schnell：纯文生图（无猫照 fallback）──
-      mode = "txt2img-schnell";
+      mode = "txt2img";
       console.log("using Flux-Schnell (txt2img, no cat photo)");
-      console.log("prompt:", imagePrompt.slice(0, 200));
-
-      const schnellRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: imagePrompt,
-          output_format: "jpeg",
-        }),
-      });
-      imageData = await schnellRes.json();
-      console.log("schnell status:", schnellRes.status, "keys:", Object.keys(imageData || {}));
     }
+    console.log("prompt:", imagePrompt.slice(0, 200));
+
+    const schnellRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(schnellBody),
+    });
+    imageData = await schnellRes.json();
+    console.log("schnell status:", schnellRes.status, "keys:", Object.keys(imageData || {}));
 
     const imageUrl = imageData?.images?.[0]?.url;
     if (imageUrl) {
