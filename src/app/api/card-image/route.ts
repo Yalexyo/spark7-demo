@@ -159,13 +159,14 @@ export async function POST(req: Request) {
     const imageData = await imageRes.json();
     console.log("schnell status:", imageRes.status, "keys:", Object.keys(imageData || {}));
 
+    const mode = catPhotoUrl ? "img2img" : "txt2img";
     const imageUrl = imageData?.images?.[0]?.url;
     if (imageUrl) {
       // 下载图片转 base64（避免国内用户加载 file.302.ai 失败）
       const downloaded = await downloadImageAsBase64(imageUrl);
-      if (downloaded) return NextResponse.json(downloaded);
+      if (downloaded) return NextResponse.json({ ...downloaded, mode });
       // 下载失败则直接返回 URL（fallback）
-      return NextResponse.json({ imageUrl });
+      return NextResponse.json({ imageUrl, mode });
     }
 
     console.error("schnell failed:", JSON.stringify(imageData).slice(0, 300));

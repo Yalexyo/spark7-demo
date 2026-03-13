@@ -198,7 +198,7 @@ export default function Home() {
       if (!r.ok) console.error("[card-image] HTTP error:", r.status, r.statusText);
       return r.json();
     }).then(d => {
-      console.log("card-image response:", d.imageUrl ? "got url" : d.image ? "got b64" : "no image", d.error || "");
+      console.log("card-image response:", d.imageUrl ? "got url" : d.image ? "got b64" : "no image", "mode:", d.mode || "unknown", d.error || "");
       if (d.imageUrl) setCardImage(d.imageUrl);
       else if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
       else console.error("card-image: no image in response", d);
