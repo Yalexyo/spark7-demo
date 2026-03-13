@@ -169,19 +169,23 @@ export async function POST(req: Request) {
     console.log("sceneText:", sceneText?.slice(0, 100) || "NONE");
     const sceneDescription = sceneText || `${ps.scene}`;
 
-    // ===== 有猫照 → Gemini img2img =====
+    // ===== 有猫照 → Gemini img2img（双通道锚定：图片 + Vision 文本）=====
     if (catPhotoBase64) {
-      const geminiImg2ImgPrompt = `Transform this cat photo into an illustration. The photo is the ONLY source of truth for the cat's appearance.
+      // catAppearance 来自 Vision API 的 summaryEn，做文本锚定
+      const hasVisionDesc = catAppearance && catAppearance !== "a cute domestic cat";
+      const visionAnchor = hasVisionDesc
+        ? `\n\nVERIFIED CAT DESCRIPTION (from photo analysis):\n${catAppearance}\n\nUse BOTH the photo AND the description above as dual anchors. They must agree in the output:`
+        : `\n\nLOOK AT THE PHOTO CAREFULLY. Reproduce this cat exactly as you see it:`;
 
-LOOK AT THE PHOTO CAREFULLY. Reproduce this cat exactly as you see it:
-- Copy the EXACT fur colors from the photo (do not shift warm↔cool)
-- Copy the EXACT eye color from the photo
-- Copy the EXACT age/size (kitten or adult)
-- Copy white fur ONLY where it appears in the photo — do NOT add white to chest, paws, or belly unless the photo clearly shows it
+      const geminiImg2ImgPrompt = `Transform this cat photo into an illustration.${visionAnchor}
+- Fur colors: match the photo${hasVisionDesc ? " AND the description" : ""} (do not shift warm↔cool)
+- Eye color: match the photo${hasVisionDesc ? " AND the description" : ""} — use the exact shade
+- Age/size: match the photo${hasVisionDesc ? " AND the description" : ""} (kitten stays kitten, adult stays adult)
+- White fur areas: ONLY where ${hasVisionDesc ? "BOTH photo AND description confirm" : "the photo clearly shows it"} — do NOT add white to chest, paws, or belly unless verified
 
 COMMON MISTAKES TO AVOID:
-- Changing eye color (e.g. teal→green, amber→yellow) — match the photo
-- Adding white fur where there is none in the photo
+- Changing eye color (e.g. teal→green, amber→yellow) — match the photo${hasVisionDesc ? " + description" : ""}
+- Adding white fur where there is none
 - Making a kitten look like an adult cat
 - Shifting grey-brown fur to orange, or vice versa
 - Making short fur look fluffy/long — if the cat has short sleek fur, keep it short and sleek. Do NOT add fluffiness or a bushy/plume tail
