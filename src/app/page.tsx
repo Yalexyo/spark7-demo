@@ -25,23 +25,59 @@ import {
 
 type Stage = "welcome" | "test" | "result" | "profile" | "wechat" | "chat" | "style" | "timeline" | "card" | "exit";
 
+// ==================== 行为埋点 ====================
+
+function trackEvent(sessionId: string, event: string, props: Record<string, unknown> = {}) {
+  if (!sessionId) return;
+  const payload = {
+    sessionId,
+    events: [{
+      event,
+      ...props,
+      timestamp: Date.now(),
+      screen: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
+    }],
+  };
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track', JSON.stringify(payload));
+    } else {
+      fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+    }
+  } catch {}
+}
+
 // ==================== 主页面 ====================
 
+// ── Session 状态持久化 ──
+const SS_KEY = "spark7_session_state";
+function loadSessionState(): Record<string, unknown> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 export default function Home() {
-  const [stage, setStage] = useState<Stage>("welcome");
-  const [catName, setCatName] = useState("");
-  const [answers, setAnswers] = useState<number[]>([]);
-  const [personalityType, setPersonalityType] = useState<PersonalityType>("sun");
-  const [secondaryType, setSecondaryType] = useState<PersonalityType | null>(null);
-  const [isPure, setIsPure] = useState(true);
-  const [chatReply, setChatReply] = useState("");
-  const [chatHistory, setChatHistory] = useState<{from: string; text: string}[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | undefined>();
-  const [catDescription, setCatDescription] = useState<string | null>(null);
-  const [catDescriptionEn, setCatDescriptionEn] = useState<string | null>(null);
-  const [catPhotoBase64, setCatPhotoBase64] = useState<string | null>(null);
-  const [catPhotoMime, setCatPhotoMime] = useState<string | null>(null);
-  const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(null);
+  // 从 sessionStorage 恢复状态（仅初始化时）
+  const [saved] = useState(() => loadSessionState());
+
+  const [stage, setStage] = useState<Stage>(() => (saved?.stage as Stage) || "welcome");
+  const [catName, setCatName] = useState(() => (saved?.catName as string) || "");
+  const [answers, setAnswers] = useState<number[]>(() => (saved?.answers as number[]) || []);
+  const [personalityType, setPersonalityType] = useState<PersonalityType>(() => (saved?.personalityType as PersonalityType) || "sun");
+  const [secondaryType, setSecondaryType] = useState<PersonalityType | null>(() => (saved?.secondaryType as PersonalityType | null) ?? null);
+  const [isPure, setIsPure] = useState(() => saved?.isPure !== undefined ? saved.isPure as boolean : true);
+  const [chatReply, setChatReply] = useState(() => (saved?.chatReply as string) || "");
+  const [chatHistory, setChatHistory] = useState<{from: string; text: string}[]>(() => (saved?.chatHistory as {from: string; text: string}[]) || []);
+  const [userProfile, setUserProfile] = useState<UserProfile | undefined>(() => saved?.userProfile as UserProfile | undefined);
+  const [catDescription, setCatDescription] = useState<string | null>(() => (saved?.catDescription as string | null) ?? null);
+  const [catDescriptionEn, setCatDescriptionEn] = useState<string | null>(() => (saved?.catDescriptionEn as string | null) ?? null);
+  const [catPhotoBase64, setCatPhotoBase64] = useState<string | null>(null); // 不从 sessionStorage 恢复（太大）
+  const [catPhotoMime, setCatPhotoMime] = useState<string | null>(() => (saved?.catPhotoMime as string | null) ?? null);
+  const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(() => (saved?.catPhotoUrl as string | null) ?? null);
+  const [catPersonalityDesc, setCatPersonalityDesc] = useState(() => (saved?.catPersonalityDesc as string) || "");
 
   // 模式：?mode=wechat 走精简流程（测试→画像→加微信）
   const [isWechatMode] = useState(() => {
@@ -62,16 +98,81 @@ export default function Home() {
 
   // 验证改造：新增状态
   const [demoStartTime] = useState(Date.now());
-  const [cardSaved, setCardSaved] = useState(false);
-  const [cardShared, setCardShared] = useState(false);
-  const [chosenPath, setChosenPath] = useState<"wechat" | "demo" | null>(null);
+  const [cardSaved, setCardSaved] = useState(() => saved?.cardSaved as boolean || false);
+  const [cardShared, setCardShared] = useState(() => saved?.cardShared as boolean || false);
+  const [chosenPath, setChosenPath] = useState<"wechat" | "demo" | null>(() => (saved?.chosenPath as "wechat" | "demo" | null) ?? null);
+
+  // ── 行为埋点: stage 切换 ──
+  const prevStageRef = useRef<Stage | null>(null);
+  const stageEnterTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    const now = Date.now();
+    // Exit previous stage
+    if (prevStageRef.current && prevStageRef.current !== stage) {
+      trackEvent(sessionId, 'stage_exit', {
+        stage: prevStageRef.current,
+        duration_ms: now - stageEnterTimeRef.current,
+      });
+    }
+    // Enter new stage
+    trackEvent(sessionId, 'stage_enter', { stage });
+    prevStageRef.current = stage;
+    stageEnterTimeRef.current = now;
+  }, [stage, sessionId]);
+
+  // Session return detection
+  useEffect(() => {
+    const lastVisit = localStorage.getItem('spark7_last_visit');
+    if (lastVisit) {
+      const gapMin = Math.round((Date.now() - parseInt(lastVisit)) / 60000);
+      if (gapMin >= 1) {
+        trackEvent(sessionId, 'session_return', { gap_minutes: gapMin });
+      }
+    }
+    const updateLastVisit = () => localStorage.setItem('spark7_last_visit', String(Date.now()));
+    updateLastVisit();
+    window.addEventListener('beforeunload', updateLastVisit);
+    return () => window.removeEventListener('beforeunload', updateLastVisit);
+  }, [sessionId]);
+
+  // Track function bound to sessionId for child components
+  const track = useCallback((event: string, props: Record<string, unknown> = {}) => {
+    trackEvent(sessionId, event, props);
+  }, [sessionId]);
 
   // 画风选择 & 图片预生成（提升到 Home 层）
   const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
-  const [selectedStyle, setSelectedStyle] = useState<string>("");
-  const [cardImage, setCardImage] = useState<string | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<string>(() => (saved?.selectedStyle as string) || "");
+  const [cardImage, setCardImage] = useState<string | null>(null); // 不从 sessionStorage 恢复（太大）
 
+  // ── 自动保存状态到 sessionStorage ──
+  useEffect(() => {
+    try {
+      const state: Record<string, unknown> = {
+        stage, catName, answers, personalityType, secondaryType, isPure,
+        chatReply, chatHistory, userProfile,
+        catDescription, catDescriptionEn,
+        // catPhotoBase64 和 cardImage 太大（base64），不存 sessionStorage
+        catPhotoMime, catPhotoUrl,
+        catPersonalityDesc,
+        cardSaved, cardShared, chosenPath,
+        selectedStyle,
+      };
+      sessionStorage.setItem(SS_KEY, JSON.stringify(state));
+    } catch { /* sessionStorage 满了或不可用，静默忽略 */ }
+  }, [stage, catName, answers, personalityType, secondaryType, isPure,
+      chatReply, chatHistory, userProfile,
+      catDescription, catDescriptionEn,
+      catPhotoMime, catPhotoUrl,
+      catPersonalityDesc,
+      cardSaved, cardShared, chosenPath,
+      selectedStyle]);
+
+  const imageGenPendingRef = useRef(false);
   const startImageGeneration = (style: string) => {
+    if (imageGenPendingRef.current) return; // 防止重复请求
+    imageGenPendingRef.current = true;
     setSelectedStyle(style);
     setCardImage(null);
     const conversationForApi = chatHistory.length > 0
@@ -83,6 +184,7 @@ export default function Home() {
       body: JSON.stringify({
         catName, personalityType,
         catDescription: catDescriptionEn || catDescription,
+        catPersonalityDesc,
         catPhotoBase64, catPhotoMime,
         artStyle: style,
         conversation: conversationForApi,
@@ -90,16 +192,41 @@ export default function Home() {
         chapter: 1,
       }),
     }).then(r => r.json()).then(d => {
-      if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-      else if (d.imageUrl) setCardImage(d.imageUrl);
-    }).catch((e) => { console.error("card-image fetch error:", e); });
+      console.log("card-image response:", d.imageUrl ? "got url" : d.image ? "got b64" : "no image", d.error || "");
+      if (d.imageUrl) setCardImage(d.imageUrl);
+      else if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
+      else console.error("card-image: no image in response", d);
+    }).catch((e) => { console.error("card-image fetch error:", e); }).finally(() => { imageGenPendingRef.current = false; });
   };
+
+  // 从 sessionStorage 恢复到 card/exit stage 但没图片时，自动重新生成
+  const autoRegenRef = useRef(false);
+  useEffect(() => {
+    if (autoRegenRef.current) return;
+    if ((stage === "card" || stage === "exit") && !cardImage && selectedStyle) {
+      autoRegenRef.current = true;
+      startImageGeneration(selectedStyle);
+    }
+  }, [stage]);
+
+  // 浏览器从后台恢复时，如果图片还没加载，重新触发生成
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !cardImage && selectedStyle && (stage === "card" || stage === "timeline")) {
+        console.log("visibility restored, retrying image generation");
+        startImageGeneration(selectedStyle);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [cardImage, selectedStyle, stage]);
 
   const personality = personalities[personalityType];
 
   const handleOptionSelect = (optionIndex: number) => {
     const newAnswers = [...answers, optionIndex];
     setAnswers(newAnswers);
+    track('personality_select', { question_id: newAnswers.length - 1, option_id: optionIndex });
 
     if (newAnswers.length >= scenarios.length) {
       const result = calculatePersonality(newAnswers);
@@ -119,8 +246,14 @@ export default function Home() {
         {stage === "welcome" && (
           <WelcomeStage
             key="welcome"
+            catPersonalityDesc={catPersonalityDesc}
+            onDescChange={setCatPersonalityDesc}
+            onDescCommit={(v) => {
+              if (v.trim()) track('cat_personality_desc_entered', { length: v.trim().length, desc: v.trim().slice(0, 100) });
+            }}
             onStart={(name, photoBase64, photoMime) => {
               setCatName(name || "小咪");
+              track('photo_upload', { has_photo: !!photoBase64 });
               setStage("test");
               // 异步 Vision 分析（在测试期间后台运行）
               if (photoBase64) {
@@ -196,7 +329,14 @@ export default function Home() {
             personality={personality}
             userProfile={userProfile}
             catDescription={catDescription}
-            onReply={setChatReply}
+            catPersonalityDesc={catPersonalityDesc}
+            onReply={(reply, inputType) => {
+              setChatReply(reply);
+              // Track the latest message (reply is accumulated with \n)
+              const parts = reply.split('\n');
+              const latest = parts[parts.length - 1];
+              track('chat_input', { msg_length: latest.length, msg_index: parts.length, stage: 'chat', input_type: inputType || 'free' });
+            }}
             onChatHistory={setChatHistory}
             onNext={() => setStage("style")}
           />
@@ -240,9 +380,10 @@ export default function Home() {
             chatHistory={chatHistory}
             catDescription={catDescription}
             catDescriptionEn={catDescriptionEn}
+            catPersonalityDesc={catPersonalityDesc}
             preloadedImage={cardImage}
-            onCardSaved={() => setCardSaved(true)}
-            onCardShared={() => setCardShared(true)}
+            onCardSaved={() => { setCardSaved(true); track('card_save'); }}
+            onCardShared={() => { setCardShared(true); track('card_share'); }}
             onNext={() => setStage("exit")}
           />
         )}
@@ -256,6 +397,7 @@ export default function Home() {
             personalityType={personalityType}
             secondaryType={secondaryType}
             userProfile={userProfile}
+            catPersonalityDesc={catPersonalityDesc}
             durationMs={Date.now() - demoStartTime}
             cardSaved={cardSaved}
             cardShared={cardShared}
@@ -358,7 +500,7 @@ function Stars() {
 
 // ==================== 欢迎页 ====================
 
-function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, photoMime?: string) => void }) {
+function WelcomeStage({ onStart, catPersonalityDesc, onDescChange, onDescCommit }: { onStart: (name: string, photo?: string, photoMime?: string) => void; catPersonalityDesc: string; onDescChange: (v: string) => void; onDescCommit: (v: string) => void }) {
   const [name, setName] = useState("");
   const [focused, setFocused] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -366,18 +508,36 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
   const [photoMime, setPhotoMime] = useState<string>("image/jpeg");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 压缩图片：最大 800px 宽/高，JPEG 0.7 质量，控制 base64 在 500KB 以内
+  const compressImage = (file: File): Promise<{ dataUrl: string; mime: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        resolve({ dataUrl, mime: "image/jpeg" });
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoMime(file.type || "image/jpeg");
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setPhotoPreview(dataUrl);
-      // 提取 base64 部分（去掉 data:image/xxx;base64, 前缀）
-      setPhotoBase64(dataUrl.split(",")[1]);
-    };
-    reader.readAsDataURL(file);
+    const { dataUrl, mime } = await compressImage(file);
+    setPhotoMime(mime);
+    setPhotoPreview(dataUrl);
+    setPhotoBase64(dataUrl.split(",")[1]);
   };
 
   return (
@@ -490,8 +650,7 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
-            capture="environment"
+            accept="image/jpeg,image/png,image/heic,image/heif,image/webp"
             onChange={handlePhoto}
             className="hidden"
           />
@@ -535,17 +694,38 @@ function WelcomeStage({ onStart }: { onStart: (name: string, photo?: string, pho
           )}
         </div>
 
+        {/* 猫个性描述（必填） */}
+        <div className="relative z-10 mb-6">
+          <p className="text-sm text-white/50 mb-2">
+            它有什么性格或小习惯？<span className="text-red-400">*</span> ✨
+          </p>
+          <input
+            type="text"
+            maxLength={200}
+            value={catPersonalityDesc}
+            onChange={(e) => onDescChange(e.target.value)}
+            onBlur={(e) => onDescCommit(e.target.value)}
+            placeholder="比如：爱蹭脚、听到开罐头就跑过来、喜欢趴在键盘上"
+            className="w-full px-4 py-3 rounded-xl text-sm text-white/90 placeholder-white/20 outline-none transition-all"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+            onFocus={(e) => { e.target.style.borderColor = "rgba(168,85,247,0.4)"; }}
+          />
+        </div>
+
         <button
           onClick={() => onStart(name, photoBase64 || undefined, photoMime)}
-          disabled={!photoBase64}
+          disabled={!photoBase64 || catPersonalityDesc.trim().length < 2}
           className="spark-btn relative z-10 w-full text-white py-4 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
           style={{
             background: "var(--brand-gradient)",
-            boxShadow: photoBase64 ? "0 4px 24px var(--brand-glow), 0 1px 3px rgba(0,0,0,0.2)" : "none",
+            boxShadow: photoBase64 && catPersonalityDesc.trim().length >= 2 ? "0 4px 24px var(--brand-glow), 0 1px 3px rgba(0,0,0,0.2)" : "none",
             borderRadius: "var(--radius-md)",
           }}
         >
-          {photoBase64 ? "开始连接 ✨" : "先上传猫咪照片 📷"}
+          {!photoBase64 ? "先上传猫咪照片 📷" : catPersonalityDesc.trim().length < 2 ? "再补充一点猫咪的小习惯 ✏️" : "开始连接 ✨"}
         </button>
       </motion.div>
     </motion.div>
@@ -561,6 +741,19 @@ function TestStage({
   currentQuestion: number;
   onSelect: (idx: number) => void;
 }) {
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // 新题目渲染后解除锁定
+  useEffect(() => {
+    setIsTransitioning(false);
+  }, [currentQuestion]);
+
+  const handleOptionClick = (idx: number) => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    onSelect(idx);
+  };
+
   const scenario = scenarios[currentQuestion];
   if (!scenario) return null;
 
@@ -619,14 +812,17 @@ function TestStage({
       <div className="space-y-4">
         {scenario.options.map((opt, idx) => (
           <motion.button
-            key={idx}
+            key={`q${currentQuestion}-opt${idx}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 + idx * 0.08 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => onSelect(idx)}
+            onClick={() => handleOptionClick(idx)}
             className="spark-option w-full text-left leading-relaxed"
-            style={{ fontSize: "var(--text-base)" }}
+            style={{
+              fontSize: "var(--text-base)",
+              pointerEvents: isTransitioning ? "none" : "auto",
+            }}
           >
             {opt.text}
           </motion.button>
@@ -1294,7 +1490,7 @@ function ProfileStage({
           <div className="space-y-4">
             {PROFILE_QUESTIONS[qIndex].options.map((opt, idx) => (
               <motion.button
-                key={idx}
+                key={`pq${qIndex}-opt${idx}`}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.08 }}
@@ -1392,6 +1588,7 @@ function ChatStage({
   personality: p,
   userProfile,
   catDescription,
+  catPersonalityDesc,
   onReply,
   onChatHistory,
   onNext,
@@ -1400,7 +1597,8 @@ function ChatStage({
   personality: Personality;
   userProfile?: UserProfile;
   catDescription?: string | null;
-  onReply: (reply: string) => void;
+  catPersonalityDesc?: string;
+  onReply: (reply: string, inputType?: "quick" | "free") => void;
   onChatHistory: (history: {from: string; text: string}[]) => void;
   onNext: () => void;
 }) {
@@ -1419,7 +1617,7 @@ function ChatStage({
 
   useEffect(() => { scrollToBottom(); }, [messages, phase, scrollToBottom]);
 
-  // 通用 AI 调用（支持不同消息类型）
+  // 通用 AI 调用（支持 streaming 逐字显示）
   const fetchChat = async (
     type: "greeting" | "reply" | "followup" | "goodnight",
     userMessage?: string,
@@ -1437,11 +1635,58 @@ function ChatStage({
           userMessage: userMessage || "",
           userProfile,
           catDescription,
+          catPersonalityDesc: catPersonalityDesc || "",
           conversationHistory: hist,
         }),
       });
-      const data = await res.json();
-      return data.reply || null;
+
+      // 非 streaming 响应（timeline 等）
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        return data.reply || null;
+      }
+
+      // Streaming SSE 响应 → 逐字追加到最后一条猫消息
+      if (!res.body) return null;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let buffer = "";
+
+      // 先插入一条空的猫消息占位
+      setMessages((prev) => [...prev, { from: "cat" as const, text: "" }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+          try {
+            const chunk = JSON.parse(jsonStr);
+            if (chunk.text) {
+              fullText += chunk.text;
+              const captured = fullText;
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { from: "cat" as const, text: captured };
+                return updated;
+              });
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      // 移除占位消息（调用方会自己加最终消息）
+      setMessages((prev) => prev.slice(0, -1));
+      return fullText || null;
     } catch { return null; }
   };
 
@@ -1495,10 +1740,10 @@ function ChatStage({
   };
 
   // 统一回复处理（快捷回复 & 自由输入 全部走 AI）
-  const handleReply = async (reply: string) => {
+  const handleReply = async (reply: string, inputType: "quick" | "free" = "free") => {
     const newReplies = [...allReplies, reply];
     setAllReplies(newReplies);
-    onReply(newReplies.join("\n"));
+    onReply(newReplies.join("\n"), inputType);
     const updatedMessages: ChatMessage[] = [...messages, { from: "user" as const, text: reply }];
     setMessages(updatedMessages);
     setPhase("cat-responding");
@@ -1585,20 +1830,26 @@ function ChatStage({
             animate={{ opacity: 1, y: 0 }}
             className="space-y-2"
           >
-            {/* 快捷回复（按轮次切换） */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {currentQuickReplies.map((reply, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleReply(reply)}
-                  className="px-4 py-2.5 bg-[#232136]/80 rounded-full border border-white/5 active:bg-white/10 transition-colors text-sm text-white/80"
-                >
-                  {reply}
-                </button>
-              ))}
-            </div>
+            {/* 快捷回复（仅第1轮破冰，第2-3轮只留自由输入） */}
+            {round === 1 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {currentQuickReplies.map((reply, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleReply(reply, "quick")}
+                    className="px-4 py-2.5 bg-[#232136]/80 rounded-full border border-white/5 active:bg-white/10 transition-colors text-sm text-white/80"
+                  >
+                    {reply}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* 自由输入引导文案（第2轮起） */}
+            {round > 1 && (
+              <p className="text-white/30 text-xs text-center mb-2">想对它说点什么？</p>
+            )}
             {/* 自由输入 → AI 回复 */}
-            <FreeInput onSend={handleReply} accentColor={p.color} />
+            <FreeInput onSend={(text) => handleReply(text, "free")} accentColor={p.color} />
           </motion.div>
         )}
 
@@ -1935,6 +2186,7 @@ function CardStage({
   chatHistory,
   catDescription,
   catDescriptionEn,
+  catPersonalityDesc,
   preloadedImage,
   onCardSaved,
   onCardShared,
@@ -1949,6 +2201,7 @@ function CardStage({
   chatHistory?: {from: string; text: string}[];
   catDescription?: string | null;
   catDescriptionEn?: string | null;
+  catPersonalityDesc?: string;
   preloadedImage?: string | null;
   onCardSaved?: () => void;
   onCardShared?: () => void;
@@ -1957,6 +2210,7 @@ function CardStage({
   // B. 画风选择
   const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
   const [saved, setSaved] = useState(false);
+
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -1982,9 +2236,9 @@ function CardStage({
   const [cardImage, setCardImage] = useState<string | null>(preloadedImage || null);
   const [contentReady, setContentReady] = useState(false);
 
-  // 同步 Home 层图片更新
+  // 同步 Home 层图片更新（preloadedImage 变化时始终同步）
   useEffect(() => {
-    if (preloadedImage && !cardImage) setCardImage(preloadedImage);
+    if (preloadedImage) setCardImage(preloadedImage);
   }, [preloadedImage]);
 
   // P1: 预加载音效文件
@@ -2012,7 +2266,7 @@ function CardStage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         catName, personalityType, secondaryType, userProfile,
-        userReply: chatReply, catDescription,
+        userReply: chatReply, catDescription, catPersonalityDesc,
         conversation: conversationForApi,
         chapter: 1,
       }),
@@ -2036,24 +2290,17 @@ function CardStage({
 
   useEffect(() => {
     if (phase === "reveal") {
-      // P1: 播放预加载的音效（已在用户选画风时通过交互上下文解锁）
       const audio = audioRef.current;
-      if (audio) {
-        audio.currentTime = 0;
-        audio.play().catch(() => {});
-      }
-
+      if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
       const t = setTimeout(() => setPhase("full"), 1000);
-      return () => {
-        clearTimeout(t);
-        audio?.pause();
-      };
+      return () => { clearTimeout(t); audio?.pause(); };
     }
   }, [phase]);
 
   const lines = poem.split("\n");
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -2146,11 +2393,13 @@ function CardStage({
                 <motion.img
                   src={cardImage}
                   alt={`${catName}的灵光卡`}
+
                   initial={{ opacity: 0, scale: 1.03 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 1.2 }}
                   className="w-full h-full object-cover"
                 />
+
                 {/* 无界渐变：图片底部溶解到人格纸色 */}
                 <div
                   className="absolute bottom-0 left-0 w-full pointer-events-none"
@@ -2371,8 +2620,8 @@ function CardStage({
                 </div>
               </motion.div>
 
-              {/* 操作按钮 · 保存/分享 */}
-              <motion.div
+              {/* 操作按钮 · 保存/分享 · 配图加载完才显示 */}
+              {cardImage && <motion.div
                 initial={{ opacity: 0 }}
                 animate={phase === "full" ? { opacity: 1 } : {}}
                 transition={{ delay: 0.3 + lines.length * 0.18 + 0.9 }}
@@ -2408,16 +2657,21 @@ function CardStage({
                 >
                   分享 <span style={{ fontSize: 10 }}>→</span>
                 </button>
-              </motion.div>
+              </motion.div>}
             </div>
           </motion.div>
 
         </motion.div>
       )}
 
-      {/* 反馈入口 · 固定底部 · 等图片加载完才显示 */}
-      {phase === "full" && (
-        <div className="flex-shrink-0 w-full sticky bottom-0 pt-3 pb-2" style={{ background: "linear-gradient(to bottom, transparent, #0f0e17 30%)" }}>
+      {/* 底部占位，防止 fixed 按钮遮挡内容 */}
+      {phase === "full" && <div className="flex-shrink-0 w-full" style={{ height: 72 }} />}
+    </motion.div>
+
+    {/* 反馈入口 · 固定视口底部 · 不在滚动容器内 */}
+    {phase === "full" && (
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+        <div className="w-full max-w-md px-6 pt-3 pb-2" style={{ background: "linear-gradient(to bottom, transparent, #0f0e17 30%)" }}>
           {cardImage ? (
             <motion.button
               initial={{ opacity: 0, y: 10 }}
@@ -2443,8 +2697,9 @@ function CardStage({
             </motion.div>
           )}
         </div>
-      )}
-    </motion.div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -2488,6 +2743,7 @@ function ExitStage({
   personalityType,
   secondaryType,
   userProfile,
+  catPersonalityDesc,
   durationMs,
   cardSaved,
   cardShared,
@@ -2499,6 +2755,7 @@ function ExitStage({
   personalityType: PersonalityType;
   secondaryType: PersonalityType | null;
   userProfile?: UserProfile;
+  catPersonalityDesc?: string;
   durationMs: number;
   cardSaved: boolean;
   cardShared: boolean;
@@ -2544,6 +2801,7 @@ function ExitStage({
           catName,
           personalityType,
           secondaryType,
+          catPersonalityDesc: catPersonalityDesc || undefined,
           feedback,
           peakMoment,
           peakExtra: peakExtra.trim() || undefined,
@@ -2689,6 +2947,26 @@ function ExitStage({
               className="w-full mt-3 bg-[#1a1826] text-sm py-3 px-4 rounded-xl focus:outline-none focus:ring-1 transition-all placeholder:text-white/20 border border-white/5 resize-none"
               style={{ focusRingColor: p.color } as React.CSSProperties}
             />
+
+            {/* 只填了文字没选选项 → 显示提交按钮 */}
+            {!peakMoment && peakExtra.trim().length > 0 && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => {
+                  setPeakMoment("other");
+                  setTimeout(() => q2Ref.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+                }}
+                className="mt-3 px-6 py-2.5 rounded-full text-sm transition-colors"
+                style={{
+                  background: `rgba(${p.colorRgb}, 0.15)`,
+                  color: p.color,
+                  border: `1px solid rgba(${p.colorRgb}, 0.3)`,
+                }}
+              >
+                继续 →
+              </motion.button>
+            )}
           </div>
 
           {/* Q2 NPS */}
@@ -2907,15 +3185,7 @@ function ExitStage({
             </>
           )}
 
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            onClick={() => window.location.reload()}
-            className="px-8 py-3 rounded-full border border-white/10 text-white/50 text-sm active:bg-white/5 transition-colors"
-          >
-            再测一次 🔄
-          </motion.button>
+{/* 再测一次按钮已移除 */}
         </motion.div>
       )}
     </motion.div>

@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
 
-// Serverless: 上传(~6s) + Gemini场景提炼(~8s) + doubao图生图(~16s) ≈ 30s
+// Flux-Schnell via 302.AI: 图生图 ~8s，性价比最高
+// fallback: Flux-Schnell 纯文生图（无猫照时）
 export const maxDuration = 60;
 
-const API_KEY = process.env.GEMINI_API_KEY;
-const TEXT_MODEL = "gemini-2.0-flash";
-const IMAGE_MODEL = "doubao-seedream-4-5-251128";
+const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
 const API_302 = "https://api.302.ai";
 
-// 人格 → 画风/场景
+// 场景提炼直连 Google（快 10x）
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const GEMINI_BASE = process.env.GOOGLE_API_KEY
+  ? "https://generativelanguage.googleapis.com"
+  : "https://api.302.ai";
+
+// 人格 → 画风
 const artStylePrompts: Record<string, string> = {
-  anime: "Japanese anime illustration, clean bold lines, vibrant colors, Studio Ghibli warmth",
-  watercolor: "Soft watercolor painting, gentle washes, dreamy bleeding edges, delicate layers",
-  ink: "Chinese ink wash painting, elegant minimalist brushstrokes, generous white space, zen tranquility",
-  storybook: "Warm storybook illustration, soft rounded shapes, golden hour lighting, cozy textured feel",
+  anime: "Japanese anime illustration, vibrant colors, Studio Ghibli warmth",
+  watercolor: "Soft watercolor painting, dreamy washes, delicate layers",
+  ink: "Chinese ink wash painting, minimalist brushstrokes, zen tranquility",
+  storybook: "Warm storybook illustration, soft shapes, golden hour lighting",
 };
 
 const personalityDefaultStyle: Record<string, string> = {
@@ -21,20 +26,18 @@ const personalityDefaultStyle: Record<string, string> = {
 };
 
 const personalityScenes: Record<string, { scene: string; palette: string; mood: string }> = {
-  storm: { scene: "cat leaping in sunset golden light, fur flying, tail high", palette: "warm orange, gold, amber, sunset pink", mood: "vibrant, free, passionate" },
-  moon: { scene: "cat sitting quietly on windowsill, blue moonlight outside, soft warm light inside", palette: "deep blue, silver, pale purple, moonlight blue, warm yellow", mood: "quiet, healing, poetic, gentle melancholy" },
-  sun: { scene: "cat stretching on sunlit floor, golden light spots on fur, content expression", palette: "golden yellow, warm orange, cream, peach, soft pink", mood: "warm, happy, smile-inducing, full of love" },
-  forest: { scene: "cat gazing into distance from a quiet corner, green plants and dappled light", palette: "deep green, ink, wood brown, moss green, golden light", mood: "composed, profound, quiet strength" },
+  storm: { scene: "cat leaping in sunset golden light, fur flying, tail high", palette: "warm orange, gold, amber", mood: "vibrant and free" },
+  moon: { scene: "cat sitting on windowsill, blue moonlight, soft warm light inside", palette: "deep blue, silver, pale purple", mood: "quiet and poetic" },
+  sun: { scene: "cat stretching on sunlit floor, golden light spots on fur", palette: "golden yellow, warm orange, cream", mood: "warm and happy" },
+  forest: { scene: "cat gazing from a quiet corner, green plants and dappled light", palette: "deep green, wood brown, moss green", mood: "calm and profound" },
 };
 
 // ===== 上传猫照到 302.AI 获取 URL =====
 async function uploadCatPhoto(base64: string, mime: string): Promise<string | null> {
   try {
-    // base64 → Buffer → Blob → FormData
     const buffer = Buffer.from(base64, "base64");
     const ext = mime.includes("png") ? "png" : "jpg";
     const blob = new Blob([buffer], { type: mime });
-
     const formData = new FormData();
     formData.append("file", blob, `cat.${ext}`);
 
@@ -45,9 +48,7 @@ async function uploadCatPhoto(base64: string, mime: string): Promise<string | nu
     });
 
     const data = await res.json();
-    if (data?.code === 200 && data?.data) {
-      return data.data; // 返回 file.302.ai URL
-    }
+    if (data?.code === 200 && data?.data) return data.data;
     console.error("upload failed:", data);
     return null;
   } catch (e) {
@@ -56,27 +57,48 @@ async function uploadCatPhoto(base64: string, mime: string): Promise<string | nu
   }
 }
 
-// 兼容 b64_json 和 url 两种响应格式
-function extractImage(data: Record<string, unknown>) {
-  const item = (data?.data as Record<string, unknown>[])?.[0];
-  if (!item) return null;
-  if (item.b64_json) return { image: item.b64_json as string, mimeType: "image/png" };
-  if (item.url) return { imageUrl: item.url as string };
-  return null;
+// ===== 下载图片 URL → base64（避免国内用户加载外部 URL 失败）=====
+async function downloadImageAsBase64(url: string): Promise<{ image: string; mimeType: string } | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    const contentType = res.headers.get("content-type") || "image/jpeg";
+    return { image: base64, mimeType: contentType };
+  } catch (e) {
+    console.error("download image error:", e);
+    return null;
+  }
+}
+
+// ===== Gemini 场景提炼（直连 Google，快 10x）=====
+async function generateScene(catName: string, catAppearance: string, personalityHint: string, personalityType: string, conversation: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${GEMINI_BASE}/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `You are illustrating a scene with a cat named "${catName}" (appearance: ${catAppearance}${personalityHint}, personality type: ${personalityType}).
+
+Conversation between the cat and human:
+${conversation}
+
+Based on the conversation mood and the cat's personality, describe ONE illustration scene in 2 English sentences. Focus on: what the cat is doing, the setting, lighting and atmosphere. The cat is the main subject.` }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 80 },
+        }),
+      }
+    );
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+  } catch { return null; }
 }
 
 export async function POST(req: Request) {
-  // 叙事阶段 → 画面指导
-  const chapterImageGuide: Record<number, string> = {
-    1: "Chapter 1 FIRST MEETING: The cat is watching the human FROM A DISTANCE. Curious but cautious. NOT touching. Maybe sitting on a high shelf or across the room, observing. The distance between them tells the story.",
-    2: "Chapter 2 EXPLORING: The cat is CLOSER but still has boundaries. Maybe sitting near the human's feet but not touching. Or walking past and glancing back. The gap is shrinking.",
-    3: "Chapter 3 TRUST: The cat shows vulnerability for the first time. Maybe sleeping near the human, or allowing a gentle touch. Eyes half-closed. Guard is down.",
-    4: "Chapter 4 DEEP UNDERSTANDING: Cat and human in quiet sync. Side by side, comfortable silence. The cat knows the human's rhythms. Intimate but not dramatic.",
-    5: "Chapter 5 MUTUAL TAMING: They belong to each other. Cat curled on the human's lap, or both silhouetted together. The bond is visible. Warm, permanent, chosen.",
-  };
-
   try {
-    const { catName, personalityType, catDescription, catPhotoBase64, catPhotoMime, artStyle, conversation, userProfile, chapter = 1 } = await req.json();
+    const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, artStyle, conversation } = await req.json();
 
     if (!API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -86,138 +108,65 @@ export async function POST(req: Request) {
     const style = artStyle || personalityDefaultStyle[personalityType] || "watercolor";
     const stylePrompt = artStylePrompts[style] || artStylePrompts.watercolor;
     const catAppearance = catDescription || "a cute domestic cat";
-    const chapterNum = Math.min(Math.max(chapter, 1), 5);
-    const narrativeGuide = chapterImageGuide[chapterNum] || chapterImageGuide[1];
+    const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
-    // ===== 并行：上传猫照 + Gemini 提炼场景 =====
+    // ===== 并行：上传猫照 + 场景提炼 =====
     const uploadPromise = catPhotoBase64
       ? uploadCatPhoto(catPhotoBase64, catPhotoMime || "image/jpeg")
       : Promise.resolve(null);
 
-    let sceneDescription = `${catAppearance}, ${ps.scene}. A human silhouette nearby, showing their bond.`;
-
     const scenePromise = conversation
-      ? (async () => {
-          try {
-            const scenePrompt = `You are a visual scene director. Read this conversation between a cat named "${catName}" and their human, then describe ONE visual scene to illustrate.
+      ? generateScene(catName, catAppearance, personalityHint, personalityType, conversation)
+      : Promise.resolve(null);
 
-NARRATIVE STAGE: ${narrativeGuide}
+    const [catPhotoUrl, sceneText] = await Promise.all([uploadPromise, scenePromise]);
+    const sceneDescription = sceneText || `${catAppearance}${personalityHint}, ${ps.scene}`;
 
-Conversation:
-${conversation}
+    // ===== Flux-Schnell（图生图 + 纯文生图统一用一个模型）=====
+    // 场景描述放最前面（权重最高），画风和猫特征辅助
+    // 有猫照时强调保留外观；无猫照时靠文字描述
+    const catInstruction = catPhotoBase64
+      ? `The cat MUST match the reference photo exactly — same fur color, pattern, and markings. Do NOT change the cat's color.`
+      : `The cat has ${catAppearance} features.`;
+    const imagePrompt = `${sceneDescription}. Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}. ${catInstruction} No text, no watermark, no signature.`;
 
-The cat: ${catAppearance}
+    console.log("using Flux-Schnell", catPhotoUrl ? "(img2img)" : "(txt2img)");
+    console.log("prompt:", imagePrompt.slice(0, 200));
 
-CRITICAL: The scene MUST match the narrative stage above. If Chapter 1, the cat should be DISTANT and observing, NOT cuddling. The physical distance between cat and human reflects their relationship stage.
-
-Output ONE English paragraph (3 sentences): what the cat is doing, where the human is (silhouette/partial figure), the DISTANCE between them, lighting and mood. ONLY the scene description.`;
-
-            const sceneRes = await fetch(
-              `${API_302}/v1beta/models/${TEXT_MODEL}:generateContent?key=${API_KEY}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: scenePrompt }] }],
-                  generationConfig: { temperature: 0.8, maxOutputTokens: 150 },
-                }),
-              }
-            );
-
-            const sceneData = await sceneRes.json();
-            const extracted = sceneData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-            if (extracted) sceneDescription = extracted;
-          } catch { /* fallback to default */ }
-        })()
-      : Promise.resolve();
-
-    // 等两个并行任务完成
-    const [catPhotoUrl] = await Promise.all([uploadPromise, scenePromise]);
-
-    // 用户画像氛围
-    let moodHints = "";
-    if (userProfile) {
-      const moodMap: Record<string, string> = {
-        tired: "gentle restful atmosphere", stressed: "calming protective feeling",
-        meh: "warm quiet companionship", full: "vibrant playful energy",
-      };
-      const needMap: Record<string, string> = {
-        understand: "deep mutual understanding", remind: "gentle caring watch",
-        cheer: "playful mischief", quiet: "peaceful silence together",
-      };
-      if (userProfile.energyLevel && moodMap[userProfile.energyLevel]) moodHints += `, ${moodMap[userProfile.energyLevel]}`;
-      if (userProfile.needType && needMap[userProfile.needType]) moodHints += `, ${needMap[userProfile.needType]}`;
-    }
-
-    // ===== doubao 生成图片 =====
-    const hasRef = !!catPhotoUrl;
-
-    const imagePrompt = hasRef
-      ? `Based on the reference cat photo, create an illustration of THIS EXACT SAME CAT (same fur colors, same markings, same face shape, same body type) in the following scene:
-
-${sceneDescription}
-
-Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}${moodHints}.
-
-CRITICAL: The cat MUST look like the reference photo — same fur pattern, same colors.
-NARRATIVE: ${narrativeGuide}
-The DISTANCE between cat and human must match the relationship stage. Square composition. No text.`
-      : `${sceneDescription}
-
-The cat: ${catAppearance}.
-Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}${moodHints}.
-
-NARRATIVE: ${narrativeGuide}
-The DISTANCE between cat and human must match the relationship stage. Square composition. No text.`;
-
-    const imageBody: Record<string, unknown> = {
-      model: IMAGE_MODEL,
+    const schnellBody: Record<string, unknown> = {
       prompt: imagePrompt,
-      response_format: "b64_json",
-      sequential_image_generation: "disabled",
-      watermark: false,
+      output_format: "jpeg",
     };
 
-    // 有猫照 URL 就做图生图
+    // 有猫照 → 图生图模式（image_prompt_strength 控制保真度）
     if (catPhotoUrl) {
-      imageBody.image = [catPhotoUrl];
+      schnellBody.image_url = catPhotoUrl;
+      schnellBody.image_prompt_strength = 0.55; // 猫照特征优先（毛色/花纹必须对），场景靠 prompt 补
     }
 
-    const imageRes = await fetch(`${API_302}/doubao/images/generations`, {
+    const imageRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(imageBody),
+      body: JSON.stringify(schnellBody),
     });
 
     const imageData = await imageRes.json();
-    console.log("doubao response keys:", Object.keys(imageData || {}), "data[0] keys:", Object.keys(imageData?.data?.[0] || {}));
+    console.log("schnell status:", imageRes.status, "keys:", Object.keys(imageData || {}));
 
-    const extracted = extractImage(imageData);
-    if (extracted) return NextResponse.json(extracted);
-
-    // 图生图失败？fallback 到纯文生图（不带参考图）
-    if (catPhotoUrl) {
-      console.log("image-to-image failed, fallback to text-to-image. error:", imageData?.error);
-      delete imageBody.image;
-      const fallbackRes = await fetch(`${API_302}/doubao/images/generations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${API_KEY}`,
-        },
-        body: JSON.stringify(imageBody),
-      });
-      const fallbackData = await fallbackRes.json();
-      console.log("fallback response keys:", Object.keys(fallbackData || {}), "data[0] keys:", Object.keys(fallbackData?.data?.[0] || {}));
-      const fallbackExtracted = extractImage(fallbackData);
-      if (fallbackExtracted) return NextResponse.json(fallbackExtracted);
+    const imageUrl = imageData?.images?.[0]?.url;
+    if (imageUrl) {
+      // 下载图片转 base64（避免国内用户加载 file.302.ai 失败）
+      const downloaded = await downloadImageAsBase64(imageUrl);
+      if (downloaded) return NextResponse.json(downloaded);
+      // 下载失败则直接返回 URL（fallback）
+      return NextResponse.json({ imageUrl });
     }
 
-    console.error("no image in response:", JSON.stringify(imageData).slice(0, 500));
-    return NextResponse.json({ error: imageData?.error?.message || "no image generated" }, { status: 500 });
+    console.error("schnell failed:", JSON.stringify(imageData).slice(0, 300));
+    return NextResponse.json({ error: imageData?.error?.message || "image generation failed" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });

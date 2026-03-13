@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
 
 :root {
   /* ===== Spark7 Design System ===== */
@@ -246,10 +246,19 @@ button, [role="button"], a {
   -webkit-tap-highlight-color: transparent;
 }
 
+@media (hover: hover) {
+  .spark-option:hover:not(:active) {
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.1);
+  }
+}
+
 .spark-option:active {
   transform: scale(0.97);
-  border-color: rgba(168, 85, 247, 0.3);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.08);
+  background: rgba(126, 58, 242, 0.95);
+  border-color: rgba(168, 85, 247, 0.8);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+  color: #ffffff;
 }
 
 /* 统一按钮基础 */

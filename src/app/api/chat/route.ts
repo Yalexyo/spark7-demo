@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 export const runtime = "edge";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Chat 直连 Google（本机有 VPN，用户通过 tunnel 访问不需要 VPN）
+// 优先用 Google 原生 key，fallback 到 302
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const GEMINI_BASE = process.env.GOOGLE_API_KEY
+  ? "https://generativelanguage.googleapis.com"
+  : "https://api.302.ai";
 const MODEL = "gemini-2.0-flash";
 
 // === 人格定义（对齐 猫人格规范-Prompt基准.md）===
@@ -49,16 +54,27 @@ function getTypeInstruction(type: string, round: number): string {
   switch (type) {
     case "greeting":
       return `第一天见面。说一句有你性格的开场白。
-要求：自然，像猫真的在看着这个新来的人。1-2句话。`;
+要求：自然，像猫真的在看着这个新来的人。
+如果知道猫咪的具体习惯（如爱蹭脚、喜欢趴键盘），可以用一个具体行为作为开场——比如正在做这个习惯动作，被主人"撞见"了。
+1-2句话。`;
 
     case "followup":
+      if (round <= 1) {
+        return `推进对话。第 ${round} 轮结束，引入下一轮。
+要求：
+- 基于猫咪个性（上面提到的习惯和细节），主动分享一件你刚刚做的事、你的观察、或你的某个习惯。
+- 重点是展示你的个性，让主人感受到"这就是我家那只猫"。不是采访主人。
+- 可以在分享之后自然带一个小问题或评论，但主体是你在"做自己"。
+- 1-2句话`;
+      }
       return `推进对话。基于刚才聊的内容自然延续。
 第 ${round} 轮结束，引入下一轮。
 要求：
 - 可以评论主人说的话、分享自己的观察、或轻轻引个新话题
+- 融入猫咪个性中的具体行为细节（上面提到的习惯），让主人感受到个性化
 - 不要问需要长文本回答的问题（不要"你最近怎么样""你觉得呢"）
 - 好的方式：短评+小问题（"你今天摸猫了吗""午饭吃了？"）或观察+反应
-- ${round <= 1 ? "还在破冰" : "已经比较熟了，可以更随意更有性格"}
+- 已经比较熟了，可以更随意更有性格
 - 1-2句话`;
 
     case "goodnight":
@@ -94,9 +110,9 @@ const CORE_RULES = `你是猫，会说人话但用猫的方式思考。
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, userMessage, userProfile, catDescription, conversationHistory, type = "reply" } = await req.json();
+    const { catName, personalityType, userMessage, userProfile, catDescription, catPersonalityDesc, conversationHistory, type = "reply" } = await req.json();
 
-    if (!GEMINI_API_KEY) {
+    if (!GOOGLE_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
@@ -119,6 +135,7 @@ export async function POST(req: Request) {
     parts.push(CORE_RULES);
     parts.push(fewShot);
     if (catDescription) parts.push(`外观：${catDescription}`);
+    if (catPersonalityDesc) parts.push(`猫咪个性：${catPersonalityDesc}\n在对话中自然融入上述习惯和细节（比如行为描写、语气词选择），但不要生硬复述。`);
     const profileParts: string[] = [];
     if (userProfile?.mbti) profileParts.push(userProfile.mbti);
     if (userProfile?.energyLevel && energyMap[userProfile.energyLevel]) profileParts.push(energyMap[userProfile.energyLevel]);
@@ -135,29 +152,87 @@ export async function POST(req: Request) {
 
     const prompt = parts.filter(p => p).join("\n");
 
+    // timeline 类型不需要 streaming（返回 JSON），其他类型走 streaming
+    if (type === "timeline") {
+      const res = await fetch(
+        `${GEMINI_BASE}/v1beta/models/${MODEL}:generateContent?key=${GOOGLE_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.85, maxOutputTokens: 500 },
+          }),
+        }
+      );
+      const data = await res.json();
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (!reply) return NextResponse.json({ error: "empty response" }, { status: 500 });
+      return NextResponse.json({ reply });
+    }
+
+    // === Streaming 模式 ===
     const res = await fetch(
-      `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `${GEMINI_BASE}/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: type === "timeline" ? 0.85 : 0.9,
-            maxOutputTokens: type === "timeline" ? 500 : 200,
-          },
+          generationConfig: { temperature: 0.9, maxOutputTokens: 200 },
         }),
       }
     );
 
-    const data = await res.json();
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (!reply) {
-      return NextResponse.json({ error: "empty response" }, { status: 500 });
+    if (!res.ok || !res.body) {
+      return NextResponse.json({ error: "stream failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ reply });
+    // 转发 SSE 流到前端
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const reader = res.body.getReader();
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        let buffer = "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr || jsonStr === "[DONE]") continue;
+              try {
+                const chunk = JSON.parse(jsonStr);
+                const text = chunk?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+                }
+              } catch { /* skip malformed chunks */ }
+            }
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (e) {
     return NextResponse.json({ error: "api error" }, { status: 500 });
   }

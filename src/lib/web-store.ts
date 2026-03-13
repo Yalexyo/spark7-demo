@@ -26,6 +26,7 @@ export interface WebSessionProfile {
   catName?: string;
   personalityType?: string;
   secondaryType?: string;
+  catPersonalityDesc?: string;
   hasCat?: boolean;
   nickname?: string;
   contact?: string;
@@ -66,6 +67,7 @@ export async function upsertSession(
       catName: data.catName,
       personalityType: data.personalityType,
       secondaryType: data.secondaryType,
+      catPersonalityDesc: data.catPersonalityDesc,
       hasCat: data.hasCat,
       nickname: data.nickname,
       contact: data.contact,
@@ -90,6 +92,7 @@ export async function upsertSession(
         catName: data.catName,
         personalityType: data.personalityType,
         secondaryType: data.secondaryType,
+        catPersonalityDesc: data.catPersonalityDesc,
         nickname: data.nickname,
         contact: data.contact,
         userProfile: data.userProfile as Record<string, unknown>,

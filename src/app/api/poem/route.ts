@@ -43,7 +43,7 @@ const chapterGuidance: Record<number, { stage: string; tone: string; foreshadow:
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, secondaryType, userProfile, userReply, catDescription, conversation, chapter = 1 } = await req.json();
+    const { catName, personalityType, secondaryType, userProfile, userReply, catDescription, catPersonalityDesc, conversation, chapter = 1 } = await req.json();
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
@@ -65,6 +65,7 @@ export async function POST(req: Request) {
     const prompt = `你是一只叫「${catName}」的猫。
 性格：${style}
 ${catDescription ? `外观：${catDescription}` : ""}
+${catPersonalityDesc ? `主人描述的猫咪个性：${catPersonalityDesc}（在诗句中自然体现这些性格特点和小习惯）` : ""}
 
 主人：${userProfile?.mbti || ""}${userProfile?.energyLevel ? ` · ${energyMap[userProfile.energyLevel]}` : ""}${userProfile?.needType ? ` · 需要${needMap[userProfile.needType]}` : ""}
 ${conversationBlock}
