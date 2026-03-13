@@ -178,10 +178,7 @@ export default function Home() {
     const conversationForApi = chatHistory.length > 0
       ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
       : chatReply || "";
-    fetch("/api/card-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const bodyPayload = {
         catName, personalityType,
         catDescription: catDescriptionEn || catDescription,
         catPersonalityDesc,
@@ -190,8 +187,17 @@ export default function Home() {
         conversation: conversationForApi,
         userProfile,
         chapter: 1,
-      }),
-    }).then(r => r.json()).then(d => {
+    };
+    const bodyStr = JSON.stringify(bodyPayload);
+    console.log("[card-image] catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE", "| body size:", (bodyStr.length / 1024).toFixed(0) + "KB");
+    fetch("/api/card-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: bodyStr,
+    }).then(r => {
+      if (!r.ok) console.error("[card-image] HTTP error:", r.status, r.statusText);
+      return r.json();
+    }).then(d => {
       console.log("card-image response:", d.imageUrl ? "got url" : d.image ? "got b64" : "no image", d.error || "");
       if (d.imageUrl) setCardImage(d.imageUrl);
       else if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);

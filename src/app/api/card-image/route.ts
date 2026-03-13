@@ -144,7 +144,7 @@ export async function POST(req: Request) {
     // 有猫照 → 图生图模式（image_prompt_strength 控制保真度）
     if (catPhotoUrl) {
       schnellBody.image_url = catPhotoUrl;
-      schnellBody.image_prompt_strength = 0.55; // 猫照特征优先（毛色/花纹必须对），场景靠 prompt 补
+      schnellBody.image_prompt_strength = 0.65; // 高保真：猫照外貌特征必须严格匹配
     }
 
     const imageRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
