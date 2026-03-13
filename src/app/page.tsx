@@ -74,7 +74,15 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>(() => saved?.userProfile as UserProfile | undefined);
   const [catDescription, setCatDescription] = useState<string | null>(() => (saved?.catDescription as string | null) ?? null);
   const [catDescriptionEn, setCatDescriptionEn] = useState<string | null>(() => (saved?.catDescriptionEn as string | null) ?? null);
-  const [catPhotoBase64, setCatPhotoBase64] = useState<string | null>(null); // 不从 sessionStorage 恢复（太大）
+  // catPhotoBase64 不存 sessionStorage（太大），但可以从 catPhotoUrl（data URI）恢复
+  const [catPhotoBase64, setCatPhotoBase64] = useState<string | null>(() => {
+    const url = saved?.catPhotoUrl as string | null;
+    if (url && url.startsWith("data:")) {
+      const match = url.match(/^data:[^;]+;base64,(.+)$/);
+      if (match) return match[1];
+    }
+    return null;
+  });
   const [catPhotoMime, setCatPhotoMime] = useState<string | null>(() => (saved?.catPhotoMime as string | null) ?? null);
   const [catPhotoUrl, setCatPhotoUrl] = useState<string | null>(() => (saved?.catPhotoUrl as string | null) ?? null);
   const [catPersonalityDesc, setCatPersonalityDesc] = useState(() => (saved?.catPersonalityDesc as string) || "");
@@ -178,18 +186,34 @@ export default function Home() {
     const conversationForApi = chatHistory.length > 0
       ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
       : chatReply || "";
+
+    // 如果 catPhotoBase64 丢了（页面刷新），从 catPhotoUrl（data URI）恢复
+    let photoB64 = catPhotoBase64;
+    let photoMime = catPhotoMime;
+    if (!photoB64 && catPhotoUrl && catPhotoUrl.startsWith("data:")) {
+      const match = catPhotoUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        photoMime = match[1];
+        photoB64 = match[2];
+        // 同步恢复 state，后续请求也不丢
+        setCatPhotoBase64(photoB64);
+        setCatPhotoMime(photoMime);
+        console.log("[card-image] recovered catPhotoBase64 from catPhotoUrl:", photoB64.length, "chars");
+      }
+    }
+
     const bodyPayload = {
         catName, personalityType,
         catDescription: catDescriptionEn || catDescription,
         catPersonalityDesc,
-        catPhotoBase64, catPhotoMime,
+        catPhotoBase64: photoB64, catPhotoMime: photoMime,
         artStyle: style,
         conversation: conversationForApi,
         userProfile,
         chapter: 1,
     };
     const bodyStr = JSON.stringify(bodyPayload);
-    console.log("[card-image] catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE", "| body size:", (bodyStr.length / 1024).toFixed(0) + "KB");
+    console.log("[card-image] catPhotoBase64:", photoB64 ? `${photoB64.length} chars` : "NONE", "| body size:", (bodyStr.length / 1024).toFixed(0) + "KB");
     fetch("/api/card-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,7 +367,18 @@ export default function Home() {
               const latest = parts[parts.length - 1];
               track('chat_input', { msg_length: latest.length, msg_index: parts.length, stage: 'chat', input_type: inputType || 'free' });
             }}
-            onChatHistory={setChatHistory}
+            onChatHistory={(history) => {
+              setChatHistory(history);
+              // 对话结束，立即持久化 chatHistory 到 Redis
+              if (history.length > 0) {
+                fetch('/api/track', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId, chatHistory: history }),
+                  keepalive: true,
+                }).catch(() => {});
+              }
+            }}
             onNext={() => setStage("style")}
           />
         )}
@@ -2276,7 +2311,13 @@ function CardStage({
         conversation: conversationForApi,
         chapter: 1,
       }),
-    }).then(r => r.json()).then(d => { if (d.poem) setPoem(d.poem); }).catch(() => {}).finally(() => { setContentReady(true); });
+    }).then(r => r.json()).then(d => {
+      if (d.poem) {
+        // Strip "✦ 瞬间：xxx" prefix line (AI's internal anchor, not for display)
+        const cleaned = d.poem.replace(/^✦\s*瞬间[：:].+\n+/, '').trim();
+        setPoem(cleaned);
+      }
+    }).catch(() => {}).finally(() => { setContentReady(true); });
   }, []);
 
   useEffect(() => {

@@ -46,14 +46,21 @@ export interface WebSessionExperience {
   cardShared?: boolean;
 }
 
+export interface ChatMessage {
+  from: string;  // "cat" | "user"
+  text: string;
+  input_type?: string;  // "quick" | "free"
+}
+
 export interface WebSessionData {
   profile: WebSessionProfile;
   experience: WebSessionExperience;
+  chatHistory?: ChatMessage[];
 }
 
 export async function upsertSession(
   sessionId: string,
-  data: Partial<WebSessionData["profile"]> & Partial<WebSessionExperience>
+  data: Partial<WebSessionData["profile"]> & Partial<WebSessionExperience> & { chatHistory?: ChatMessage[] }
 ): Promise<void> {
   const r = getRedis();
   const existing = await r.hget(SESSIONS_KEY, sessionId);
@@ -74,6 +81,10 @@ export async function upsertSession(
       userProfile: data.userProfile,
     }));
     session.profile.updatedAt = now;
+    // merge chatHistory (overwrite if provided)
+    if (data.chatHistory && data.chatHistory.length > 0) {
+      session.chatHistory = data.chatHistory;
+    }
     // merge experience fields
     Object.assign(session.experience, filterUndefined({
       durationMs: data.durationMs,
@@ -108,6 +119,7 @@ export async function upsertSession(
         cardSaved: data.cardSaved,
         cardShared: data.cardShared,
       },
+      chatHistory: data.chatHistory,
     };
   }
 
@@ -139,6 +151,7 @@ export async function exportAll(): Promise<{
   users: Array<{
     profile: WebSessionProfile;
     experience: WebSessionExperience;
+    chatHistory?: ChatMessage[];
     events: TrackEvent[];
   }>;
 }> {
@@ -147,6 +160,7 @@ export async function exportAll(): Promise<{
   const users: Array<{
     profile: WebSessionProfile;
     experience: WebSessionExperience;
+    chatHistory?: ChatMessage[];
     events: TrackEvent[];
   }> = [];
 
@@ -157,6 +171,7 @@ export async function exportAll(): Promise<{
     users.push({
       profile: session.profile,
       experience: session.experience,
+      chatHistory: session.chatHistory,
       events,
     });
   }
@@ -179,7 +194,7 @@ export async function exportSession(sessionId: string) {
   const session: WebSessionData = JSON.parse(json);
   const rawEvents = await r.lrange(`${EVENTS_PREFIX}${sessionId}`, 0, -1);
   const events = rawEvents.map((e) => JSON.parse(e) as TrackEvent);
-  return { profile: session.profile, experience: session.experience, events };
+  return { profile: session.profile, experience: session.experience, chatHistory: session.chatHistory, events };
 }
 
 // ── Helpers ──

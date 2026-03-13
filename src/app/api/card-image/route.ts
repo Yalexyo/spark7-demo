@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-// 有猫照 → Gemini 3 Pro Image (img2img, 高保真, ~15s)
-// 无猫照 → Gemini 3 Pro Image (txt2img)
-// fallback: Flux-Schnell via 302.AI
+// 有猫照 → Gemini 3 Pro Image img2img（强化 identity anchor prompt）
+// 无猫照 → Gemini 3 Pro Image txt2img
+// 末端 fallback: Flux-Schnell via 302.AI
 export const maxDuration = 60;
 
 const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
@@ -47,7 +47,7 @@ async function generateScene(catName: string, catAppearance: string, personality
 Conversation between the cat and human:
 ${conversation}
 
-Based on the conversation mood and the cat's personality, describe ONE illustration scene in 2 English sentences. Focus on: what the cat is doing, the setting, lighting and atmosphere. The cat is the main subject.` }] }],
+Based on the conversation mood and the cat's personality, describe ONE illustration scene in 2 English sentences. Focus on: what the cat is doing, the setting, lighting and atmosphere. The cat is the main subject. Do NOT describe the cat's appearance — only the scene, action, and mood.` }] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 80 },
         }),
       }
@@ -121,6 +121,7 @@ async function generateWithGemini(
 
 // ===== Flux-Schnell fallback（纯文生图）=====
 async function generateWithFlux(prompt: string): Promise<{ image: string; mimeType: string; mode: string } | null> {
+  if (!API_KEY) return null;
   try {
     const res = await fetch(`${API_302}/302/submit/flux-schnell`, {
       method: "POST",
@@ -154,7 +155,7 @@ export async function POST(req: Request) {
   try {
     const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, artStyle, conversation } = await req.json();
 
-    if (!GOOGLE_API_KEY) {
+    if (!GOOGLE_API_KEY && !API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
@@ -166,34 +167,62 @@ export async function POST(req: Request) {
 
     console.log("catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE");
 
-    // ===== 场景提炼（并行，不等猫照）=====
+    // ===== 场景提炼 =====
     const sceneText = conversation
       ? await generateScene(catName, catAppearance, personalityHint, personalityType, conversation)
       : null;
     console.log("sceneText:", sceneText?.slice(0, 100) || "NONE");
-    const sceneDescription = sceneText || `${catAppearance}${personalityHint}, ${ps.scene}`;
+    const sceneDescription = sceneText || `${ps.scene}`;
 
-    // ===== 构建图片 prompt =====
-    const catInstruction = catPhotoBase64
-      ? `Based on the reference photo of this cat, create an illustration keeping the EXACT same cat — same fur color, pattern, body shape, and markings. The cat in the illustration must be clearly recognizable as the same cat from the photo.`
-      : `The cat has ${catAppearance} features.`;
+    // ===== 有猫照 → Gemini img2img =====
+    if (catPhotoBase64) {
+      const geminiImg2ImgPrompt = `IMPORTANT: This is a reference photo of a real cat. You MUST preserve this cat's exact identity in the illustration.
 
-    const imagePrompt = `${catInstruction}\n\nScene: ${sceneDescription}\nArt style: ${stylePrompt}\nColor palette: ${ps.palette}\nMood: ${ps.mood}\nNo text, no watermark, no signature, no borders.`;
+IDENTITY ANCHOR — copy these traits exactly from the photo:
+- Fur color(s) and pattern (stripes, spots, patches, solid)
+- Face shape, ear shape, eye color
+- Body proportions and size
+- Any unique markings (nose color, paw colors, tail pattern)
 
-    console.log("prompt:", imagePrompt.slice(0, 300));
+Now create an illustration of THIS EXACT CAT in a new scene:
+Scene: ${sceneDescription}
+Art style: ${stylePrompt}
+Color palette: ${ps.palette}
+Mood: ${ps.mood}
 
-    // ===== Gemini 图片生成 =====
-    console.log("trying Gemini 3 Pro Image...");
-    const geminiResult = await generateWithGemini(imagePrompt, catPhotoBase64, catPhotoMime);
+The cat must be IMMEDIATELY recognizable as the same cat from the reference photo. Do not change any physical features. No text, no watermark, no signature, no borders.`;
 
-    if (geminiResult) {
-      console.log("gemini success, mode:", geminiResult.mode, "image size:", geminiResult.image.length);
-      return NextResponse.json(geminiResult);
+      console.log("trying Gemini img2img with identity anchor prompt...");
+      const geminiResult = await generateWithGemini(geminiImg2ImgPrompt, catPhotoBase64, catPhotoMime);
+
+      if (geminiResult) {
+        console.log("gemini img2img success, image size:", geminiResult.image.length);
+        return NextResponse.json(geminiResult);
+      }
+      console.log("gemini img2img failed");
+    } else {
+      // ===== 无猫照 → Gemini txt2img =====
+      const txtPrompt = `Illustration of a cat named ${catName} with ${catAppearance} features${personalityHint}.
+Scene: ${sceneDescription}
+Art style: ${stylePrompt}
+Color palette: ${ps.palette}
+Mood: ${ps.mood}
+No text, no watermark, no signature, no borders.`;
+
+      console.log("no cat photo, trying Gemini txt2img...");
+      const geminiResult = await generateWithGemini(txtPrompt);
+
+      if (geminiResult) {
+        console.log("gemini txt2img success, image size:", geminiResult.image.length);
+        return NextResponse.json(geminiResult);
+      }
+      console.log("gemini txt2img failed");
     }
 
-    // ===== Fallback: Flux-Schnell（纯文生图）=====
-    console.log("gemini failed, falling back to Flux-Schnell txt2img");
-    const fluxResult = await generateWithFlux(imagePrompt);
+    // ===== 末端 Fallback: Flux-Schnell（纯文生图）=====
+    const fallbackPrompt = `${stylePrompt} illustration of a cat with ${catAppearance} features. ${sceneDescription}. Color palette: ${ps.palette}. Mood: ${ps.mood}. No text, no watermark.`;
+    console.log("all primary methods failed, falling back to Flux-Schnell txt2img");
+    const fluxResult = await generateWithFlux(fallbackPrompt);
     if (fluxResult) {
       return NextResponse.json(fluxResult);
     }

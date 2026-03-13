@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       cardShared,
       userProfile,
       isSupplemental,
+      chatHistory,
       // event tracking fields
       events,
     } = body;
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
           nps,
           cardSaved,
           cardShared,
+          chatHistory,
         });
 
         if (events && Array.isArray(events)) {
