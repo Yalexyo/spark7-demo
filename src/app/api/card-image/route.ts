@@ -121,33 +121,29 @@ async function uploadTo302(base64: string, mime: string = "image/jpeg"): Promise
   if (!API_KEY) return null;
   try {
     const ext = mime.includes("png") ? "png" : "jpg";
-    const boundary = `----WebKitFormBoundary${Date.now()}`;
     const binaryData = Buffer.from(base64, "base64");
 
-    const bodyParts = [
-      `--${boundary}\r\n`,
-      `Content-Disposition: form-data; name="file"; filename="cat.${ext}"\r\n`,
-      `Content-Type: ${mime}\r\n\r\n`,
-    ];
-    const header = Buffer.from(bodyParts.join(""));
-    const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-    const body = Buffer.concat([header, binaryData, footer]);
+    // 用 Blob + FormData 构建 multipart（Edge Runtime 兼容）
+    const formData = new FormData();
+    const blob = new Blob([binaryData], { type: mime });
+    formData.append("file", blob, `cat.${ext}`);
 
     const res = await fetch(`${API_302}/302/upload-file`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
       },
-      body,
+      body: formData,
     });
-    const data = await res.json();
-    const url = data?.data?.url || data?.url;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json();
+    // 302.AI 返回格式: { code: 200, data: "https://file.302.ai/...", message: "success" }
+    const url = typeof data?.data === "string" ? data.data : data?.data?.url;
     if (url) {
       console.log("302 upload success:", url.slice(0, 80));
       return url;
     }
-    console.error("302 upload: no url in response", data);
+    console.error("302 upload: no url in response", JSON.stringify(data).slice(0, 200));
     return null;
   } catch (e) {
     console.error("302 upload error:", e);
