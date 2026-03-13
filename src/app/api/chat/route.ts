@@ -152,8 +152,10 @@ export async function POST(req: Request) {
 
     const prompt = parts.filter(p => p).join("\n");
 
-    // timeline 类型不需要 streaming（返回 JSON），其他类型走 streaming
-    if (type === "timeline") {
+    const isDirectGoogle = GEMINI_BASE.includes("googleapis.com");
+
+    // 302.AI 的 streamGenerateContent 格式不兼容 SSE，只有直连 Google 才走 streaming
+    if (type === "timeline" || !isDirectGoogle) {
       const res = await fetch(
         `${GEMINI_BASE}/v1beta/models/${MODEL}:generateContent?key=${GOOGLE_API_KEY}`,
         {
@@ -161,7 +163,10 @@ export async function POST(req: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.85, maxOutputTokens: 500 },
+            generationConfig: {
+              temperature: type === "timeline" ? 0.85 : 0.9,
+              maxOutputTokens: type === "timeline" ? 500 : 200,
+            },
           }),
         }
       );
@@ -171,7 +176,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply });
     }
 
-    // === Streaming 模式 ===
+    // === Streaming 模式（仅 Google 直连）===
     const res = await fetch(
       `${GEMINI_BASE}/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${GOOGLE_API_KEY}`,
       {
