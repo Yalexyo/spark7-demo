@@ -1830,8 +1830,8 @@ function ChatStage({
             animate={{ opacity: 1, y: 0 }}
             className="space-y-2"
           >
-            {/* 快捷回复（仅第1轮破冰，第2-3轮只留自由输入） */}
-            {round === 1 && (
+            {/* 快捷回复（仅用户首次回复前，发过消息后永久隐藏） */}
+            {allReplies.length === 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {currentQuickReplies.map((reply, idx) => (
                   <button
@@ -1844,8 +1844,8 @@ function ChatStage({
                 ))}
               </div>
             )}
-            {/* 自由输入引导文案（第2轮起） */}
-            {round > 1 && (
+            {/* 自由输入引导文案（发过消息后显示） */}
+            {allReplies.length > 0 && (
               <p className="text-white/30 text-xs text-center mb-2">想对它说点什么？</p>
             )}
             {/* 自由输入 → AI 回复 */}

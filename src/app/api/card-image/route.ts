@@ -111,6 +111,7 @@ export async function POST(req: Request) {
     const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
     // ===== 并行：上传猫照 + 场景提炼 =====
+    console.log("catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE");
     const uploadPromise = catPhotoBase64
       ? uploadCatPhoto(catPhotoBase64, catPhotoMime || "image/jpeg")
       : Promise.resolve(null);
@@ -120,6 +121,8 @@ export async function POST(req: Request) {
       : Promise.resolve(null);
 
     const [catPhotoUrl, sceneText] = await Promise.all([uploadPromise, scenePromise]);
+    console.log("catPhotoUrl:", catPhotoUrl || "NONE (upload failed or no photo)");
+    console.log("sceneText:", sceneText?.slice(0, 100) || "NONE (using fallback)");
     const sceneDescription = sceneText || `${catAppearance}${personalityHint}, ${ps.scene}`;
 
     // ===== Flux-Schnell（图生图 + 纯文生图统一用一个模型）=====
