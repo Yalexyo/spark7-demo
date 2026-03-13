@@ -248,7 +248,10 @@ export async function POST(req: Request) {
     const catAppearance = catDescription || "a cute domestic cat";
     const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
+    console.log("=== card-image request ===");
     console.log("catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE");
+    console.log("catDescription:", catAppearance?.slice(0, 100));
+    console.log("catName:", catName, "personality:", personalityType);
 
     // ===== 场景提炼 =====
     const sceneText = conversation
@@ -282,20 +285,22 @@ Style must NOT alter the cat's physical features.
 The cat is the main subject (40%+ of image). Square composition. No text. No other cats.`;
 
       // Step 1: 上传猫照到 302.AI 拿 URL
-      console.log("uploading cat photo to 302.AI...");
+      console.log("uploading cat photo to 302.AI... (base64 length:", catPhotoBase64.length, "mime:", catPhotoMime, ")");
       const photoURL = await uploadTo302(catPhotoBase64, catPhotoMime || "image/jpeg");
+      console.log("photoURL:", photoURL || "UPLOAD FAILED");
 
       if (photoURL) {
         // Step 2: seedream img2img（主通道）
-        console.log("trying seedream img2img...");
+        console.log("trying seedream img2img with photoURL:", photoURL.slice(0, 80));
+        console.log("img2img prompt (first 200):", img2imgPrompt.slice(0, 200));
         const seedreamResult = await generateWithSeedream(img2imgPrompt, photoURL);
         if (seedreamResult) {
-          console.log("seedream img2img success, image size:", seedreamResult.image.length);
+          console.log("seedream img2img success, mode:", seedreamResult.mode, "image size:", seedreamResult.image.length);
           return NextResponse.json(seedreamResult);
         }
         console.log("seedream img2img failed, falling back to Gemini...");
       } else {
-        console.log("photo upload failed, skipping seedream img2img");
+        console.log("photo upload failed, skipping seedream img2img → will try Gemini");
       }
 
       // Gemini img2img fallback（直传 base64，不需要 URL）
