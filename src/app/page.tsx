@@ -206,26 +206,58 @@ export default function Home() {
         catDescription: catDescriptionEn || catDescription,
         catPersonalityDesc,
         catPhotoBase64: photoB64, catPhotoMime: photoMime,
-        artStyle: style,
         conversation: conversationForApi,
-        userProfile,
-        chapter: 1,
     };
     const bodyStr = JSON.stringify(bodyPayload);
     console.log("[card-image] catPhotoBase64:", photoB64 ? `${photoB64.length} chars` : "NONE", "| body size:", (bodyStr.length / 1024).toFixed(0) + "KB");
+
+    // Step 1: Vercel API 做场景提炼 + 上传猫照（<10s）
     fetch("/api/card-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: bodyStr,
     }).then(r => {
-      if (!r.ok) console.error("[card-image] HTTP error:", r.status, r.statusText);
+      if (!r.ok) throw new Error(`card-image HTTP ${r.status}`);
+      return r.json();
+    }).then(prepareData => {
+      if (prepareData.error) throw new Error(prepareData.error);
+      console.log("[card-image] prepare done, mode:", prepareData.mode, "photoURL:", prepareData.photoURL ? "YES" : "NO");
+
+      // Step 2: 直调 CF Proxy 的 seedream 生图（无超时限制）
+      const CF_PROXY = "https://spark7-gemini-proxy.gstlzy.workers.dev";
+      const PROXY_TOKEN = "b8f419cc764d2f1f3de65315fe2d0d567d1d6c208ceaac5963c222c8ba107436";
+
+      const seedreamBody: Record<string, unknown> = {
+        model: prepareData.model,
+        prompt: prepareData.prompt,
+        response_format: "b64_json",
+        sequential_image_generation: "disabled",
+        watermark: false,
+      };
+      if (prepareData.photoURL) {
+        seedreamBody.image = [prepareData.photoURL];
+      }
+
+      return fetch(`${CF_PROXY}/doubao/images/generations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${PROXY_TOKEN}`,
+        },
+        body: JSON.stringify(seedreamBody),
+      });
+    }).then(r => {
+      if (!r.ok) throw new Error(`seedream HTTP ${r.status}`);
       return r.json();
     }).then(d => {
-      console.log("card-image response:", d.imageUrl ? "got url" : d.image ? "got b64" : "no image", "mode:", d.mode || "unknown", d.error || "");
-      if (d.imageUrl) setCardImage(d.imageUrl);
-      else if (d.image && d.mimeType) setCardImage(`data:${d.mimeType};base64,${d.image}`);
-      else console.error("card-image: no image in response", d);
-    }).catch((e) => { console.error("card-image fetch error:", e); }).finally(() => { imageGenPendingRef.current = false; });
+      const b64 = d?.data?.[0]?.b64_json;
+      if (b64) {
+        console.log("[card-image] seedream success, b64 length:", b64.length);
+        setCardImage(`data:image/jpeg;base64,${b64}`);
+      } else {
+        console.error("[card-image] seedream: no image in response", d?.error || "");
+      }
+    }).catch((e) => { console.error("[card-image] error:", e); }).finally(() => { imageGenPendingRef.current = false; });
   };
 
   // 从 sessionStorage 恢复到 card/exit stage 但没图片时，自动重新生成

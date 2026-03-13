@@ -236,40 +236,41 @@ async function generateWithFlux(prompt: string): Promise<{ image: string; mimeTy
 
 export async function POST(req: Request) {
   try {
-    const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, artStyle, conversation } = await req.json();
+    const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, conversation } = await req.json();
 
     if (!GOOGLE_API_KEY && !API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
     const ps = personalityScenes[personalityType] || personalityScenes.sun;
-    // 统一 storybook，忽略前端传来的 artStyle
     const stylePrompt = UNIFIED_STYLE;
     const catAppearance = catDescription || "a cute domestic cat";
     const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
-    console.log("=== card-image request ===");
-    console.log("catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE");
-    console.log("catDescription:", catAppearance?.slice(0, 100));
-    console.log("catName:", catName, "personality:", personalityType);
-
-    // ===== 场景提炼 =====
+    // ===== Step 1: 场景提炼（Gemini Flash，<5s）=====
     const sceneText = conversation
       ? await generateScene(catName, catAppearance, personalityHint, personalityType, conversation)
       : null;
-    console.log("sceneText:", sceneText?.slice(0, 100) || "NONE");
     const sceneDescription = sceneText || `${ps.scene}`;
 
-    // ===== 有猫照 → seedream img2img（和 iOS 同款配方）=====
+    // ===== Step 2: 上传猫照到 302.AI（<3s）=====
+    let photoURL: string | null = null;
     if (catPhotoBase64) {
-      const hasVisionDesc = catAppearance && catAppearance !== "a cute domestic cat";
+      photoURL = await uploadTo302(catPhotoBase64, catPhotoMime || "image/jpeg");
+      console.log("photoURL:", photoURL || "UPLOAD FAILED");
+    }
 
-      // 双通道锚定 prompt（和 iOS APIClient.swift 对齐）
+    // ===== Step 3: 构建 prompt =====
+    const hasVisionDesc = catAppearance && catAppearance !== "a cute domestic cat";
+    let prompt: string;
+
+    if (photoURL) {
+      // img2img prompt（双通道锚定）
       const visionAnchor = hasVisionDesc
         ? `\n\nVERIFIED CAT DESCRIPTION (from photo analysis):\n${catAppearance}\n\nUse BOTH the reference photo AND the description above as dual anchors. They must agree in the output.`
         : "";
 
-      const img2imgPrompt = `Transform this cat photo into an illustration while keeping the cat's identity PERFECTLY intact.${visionAnchor}
+      prompt = `Transform this cat photo into an illustration while keeping the cat's identity PERFECTLY intact.${visionAnchor}
 
 ABSOLUTE RULES (violating any = failure):
 1. SAME eye color as photo${hasVisionDesc ? " + description" : ""} — match the EXACT hue.
@@ -283,76 +284,21 @@ STYLE: ${stylePrompt}. Palette hint: ${ps.palette}. Mood: ${ps.mood}.
 Style must NOT alter the cat's physical features.
 
 The cat is the main subject (40%+ of image). Square composition. No text. No other cats.`;
-
-      // Step 1: 上传猫照到 302.AI 拿 URL
-      console.log("uploading cat photo to 302.AI... (base64 length:", catPhotoBase64.length, "mime:", catPhotoMime, ")");
-      const photoURL = await uploadTo302(catPhotoBase64, catPhotoMime || "image/jpeg");
-      console.log("photoURL:", photoURL || "UPLOAD FAILED");
-
-      if (photoURL) {
-        // Step 2: seedream img2img（主通道）
-        console.log("trying seedream img2img with photoURL:", photoURL.slice(0, 80));
-        console.log("img2img prompt (first 200):", img2imgPrompt.slice(0, 200));
-        const seedreamResult = await generateWithSeedream(img2imgPrompt, photoURL);
-        if (seedreamResult) {
-          console.log("seedream img2img success, mode:", seedreamResult.mode, "image size:", seedreamResult.image.length);
-          return NextResponse.json(seedreamResult);
-        }
-        console.log("seedream img2img failed, falling back to Gemini...");
-      } else {
-        console.log("photo upload failed, skipping seedream img2img → will try Gemini");
-      }
-
-      // Gemini img2img fallback（直传 base64，不需要 URL）
-      const geminiImg2ImgPrompt = `Transform this cat photo into an illustration.${hasVisionDesc ? `\n\nVERIFIED CAT DESCRIPTION:\n${catAppearance}\n\nMatch BOTH the photo AND description:` : "\n\nMatch the cat in the photo exactly:"}
-- Fur colors: match exactly (do not shift warm↔cool)
-- Eye color: match the exact shade
-- White fur areas: ONLY where confirmed — do NOT add white
-- Same age, body type, fur length
-
-Scene: ${sceneDescription}
-Style: ${stylePrompt}. Palette: ${ps.palette}. Mood: ${ps.mood}.
-Cat is main subject (40%+). No text, no watermark, no other cats.`;
-
-      console.log("trying Gemini img2img fallback...");
-      const geminiResult = await generateWithGemini(geminiImg2ImgPrompt, catPhotoBase64, catPhotoMime);
-      if (geminiResult) {
-        console.log("gemini img2img fallback success");
-        return NextResponse.json(geminiResult);
-      }
-      console.log("gemini img2img also failed");
     } else {
-      // ===== 无猫照 → seedream txt2img → Gemini txt2img =====
-      const txtPrompt = `${stylePrompt} illustration of a cat named ${catName} with ${catAppearance} features${personalityHint}.
+      // txt2img prompt
+      prompt = `${stylePrompt} illustration of a cat named ${catName} with ${catAppearance} features${personalityHint}.
 Scene: ${sceneDescription}
 Color palette: ${ps.palette}. Mood: ${ps.mood}.
 No text, no watermark. Square composition.`;
-
-      console.log("no cat photo, trying seedream txt2img...");
-      const seedreamResult = await generateWithSeedream(txtPrompt);
-      if (seedreamResult) {
-        console.log("seedream txt2img success");
-        return NextResponse.json(seedreamResult);
-      }
-
-      console.log("seedream txt2img failed, trying Gemini...");
-      const geminiResult = await generateWithGemini(txtPrompt);
-      if (geminiResult) {
-        console.log("gemini txt2img success");
-        return NextResponse.json(geminiResult);
-      }
-      console.log("gemini txt2img also failed");
     }
 
-    // ===== 末端 Fallback: Flux-Schnell（纯文生图）=====
-    const fallbackPrompt = `${stylePrompt} illustration of a cat with ${catAppearance} features. ${sceneDescription}. Color palette: ${ps.palette}. Mood: ${ps.mood}. No text, no watermark.`;
-    console.log("all primary methods failed, falling back to Flux-Schnell txt2img");
-    const fluxResult = await generateWithFlux(fallbackPrompt);
-    if (fluxResult) {
-      return NextResponse.json(fluxResult);
-    }
-
-    return NextResponse.json({ error: "all image generation methods failed" }, { status: 500 });
+    // ===== 返回 prompt + photoURL，前端直调 CF Proxy 生图 =====
+    return NextResponse.json({
+      prompt,
+      photoURL,
+      model: SEEDREAM_MODEL,
+      mode: photoURL ? "img2img" : "txt2img",
+    });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });
