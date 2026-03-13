@@ -18,19 +18,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no image" }, { status: 400 });
     }
 
-    const prompt = `You are an expert cat portrait artist. Analyze this cat photo and extract a detailed visual description that could be used to recreate this SPECIFIC cat in an illustration.
+    const prompt = `You are an expert cat identification specialist. Your description will be used to generate illustrations that MUST look exactly like THIS specific cat. An owner must instantly recognize their cat from your description. ACCURACY IS EVERYTHING.
 
-Return JSON with these fields:
+Analyze this photo with extreme precision. Pay special attention to:
+- AGE: Is this a kitten (large ears/eyes relative to head, small body) or an adult cat? Be explicit.
+- EYE COLOR: Look very carefully. Common mistakes: confusing teal/aqua with green, confusing amber with yellow. Use the most specific term possible (teal, aqua, blue-green, golden-amber, copper, hazel, vivid green, ice blue, etc.)
+- WHITE AREAS: Be VERY precise about where white fur appears. If white is ONLY on the nose/muzzle, say so. Do NOT assume white chest or white paws unless clearly visible.
 
-1. "appearance": Detailed physical description in English. Include: fur color(s) and pattern (tabby/solid/bicolor/calico/etc.), fur length, body type (slim/stocky/muscular/chubby), face shape, ear shape, eye color. Be SPECIFIC enough to distinguish this cat from others. (2-3 sentences)
+Return JSON:
 
-2. "mood": Current expression and body language in English. (1 sentence)
+1. "appearance": Structured English description in this EXACT format:
+   "A [age: kitten ~X weeks / young cat / adult] [fur length] [body type] [breed or domestic] cat. Fur: [primary color] [pattern type], with [PRECISE color placement — list EXACTLY which body parts are which color. If white is only on muzzle, say 'white limited to muzzle/nose bridge only, no white on chest or paws']. Eyes: [exact color — be very specific, e.g. 'vivid teal/aqua' not just 'green']. Face: [shape] with [nose color] nose. [Unique markings: forehead M, tail rings, chin color, etc.]"
+   COLOR PLACEMENT accuracy is the #1 priority. Do NOT exaggerate white areas. (3-4 sentences)
 
-3. "detail": One unique identifying feature that makes this cat special — a distinctive marking, scar, ear notch, nose pattern, paw color, etc. (1 sentence)
+2. "mood": Current expression/posture. (1 sentence)
 
-4. "appearance_cn": Same as appearance but in Chinese. (1-2 sentences)
+3. "detail": The single most distinctive visual feature. (1 sentence)
 
-Output ONLY the JSON object, no other text.`;
+4. "appearance_cn": Chinese version with same precision. Include age. (2-3 sentences)
+
+Output ONLY the JSON object.`;
 
     const res = await fetch(
       `https://api.302.ai/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,

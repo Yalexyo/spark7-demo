@@ -23,7 +23,7 @@ import {
   blendCardTheme,
 } from "@/lib/data";
 
-type Stage = "welcome" | "test" | "result" | "profile" | "wechat" | "chat" | "style" | "timeline" | "card" | "exit";
+type Stage = "welcome" | "test" | "result" | "profile" | "wechat" | "chat" | "timeline" | "card" | "exit";
 
 // ==================== 行为埋点 ====================
 
@@ -149,9 +149,8 @@ export default function Home() {
     trackEvent(sessionId, event, props);
   }, [sessionId]);
 
-  // 画风选择 & 图片预生成（提升到 Home 层）
-  const defaultStyles: Record<string, string> = { storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor" };
-  const [selectedStyle, setSelectedStyle] = useState<string>(() => (saved?.selectedStyle as string) || "");
+  // 图片预生成（统一 storybook，画风选择已移除）
+  const [selectedStyle, setSelectedStyle] = useState<string>("storybook");
   const [cardImage, setCardImage] = useState<string | null>(null); // 不从 sessionStorage 恢复（太大）
 
   // ── 自动保存状态到 sessionStorage ──
@@ -379,19 +378,8 @@ export default function Home() {
                 }).catch(() => {});
               }
             }}
-            onNext={() => setStage("style")}
-          />
-        )}
-
-        {stage === "style" && (
-          <StyleSelectStage
-            key="style"
-            catName={catName}
-            personality={personality}
-            personalityType={personalityType}
-            defaultStyle={defaultStyles[personalityType] || "watercolor"}
-            onConfirm={(style) => {
-              startImageGeneration(style);
+            onNext={() => {
+              startImageGeneration("storybook");
               setStage("timeline");
             }}
           />
@@ -1911,93 +1899,7 @@ function ChatStage({
   );
 }
 
-// ==================== 画风选择（独立 Stage） ====================
-
-function StyleSelectStage({
-  catName,
-  personality: p,
-  personalityType,
-  defaultStyle,
-  onConfirm,
-}: {
-  catName: string;
-  personality: Personality;
-  personalityType: PersonalityType;
-  defaultStyle: string;
-  onConfirm: (style: string) => void;
-}) {
-  const styleOptions = [
-    { key: "anime", label: "日漫", icon: "🎌" },
-    { key: "watercolor", label: "水彩", icon: "🎨" },
-    { key: "ink", label: "水墨", icon: "🖌️" },
-    { key: "storybook", label: "绘本", icon: "📖" },
-  ];
-  const [selected, setSelected] = useState(defaultStyle);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -30 }}
-      transition={{ duration: 0.5 }}
-      className="z-10 w-full max-w-md px-6 h-dvh flex flex-col items-center justify-center"
-    >
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-5xl mb-4"
-      >
-        {p.emoji}
-      </motion.div>
-      <h2 className="text-xl font-bold mb-2 text-white">选择灵光卡画风</h2>
-      <p className="text-sm text-white/40 mb-8">
-        为 {catName} 的故事挑一种风格
-      </p>
-
-      <div className="grid grid-cols-2 gap-3 mb-8 w-full">
-        {styleOptions.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => setSelected(s.key)}
-            className="relative p-4 rounded-xl border transition-all active:scale-95"
-            style={{
-              borderColor: selected === s.key ? p.color : "rgba(255,255,255,0.08)",
-              background: selected === s.key
-                ? `rgba(${p.colorRgb}, 0.12)`
-                : "rgba(35,33,54,0.8)",
-              boxShadow: selected === s.key
-                ? `0 0 20px rgba(${p.colorRgb}, 0.15)`
-                : "none",
-            }}
-          >
-            <span className="text-2xl mb-1 block">{s.icon}</span>
-            <span className={`text-sm font-medium ${selected === s.key ? "text-white" : "text-white/60"}`}>
-              {s.label}
-            </span>
-            {selected === s.key && (
-              <motion.div
-                layoutId="style-check"
-                className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
-                style={{ background: p.color }}
-              >
-                ✓
-              </motion.div>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <button
-        onClick={() => onConfirm(selected)}
-        className="spark-btn w-full py-4 text-white"
-        style={{ background: "var(--brand-gradient)", boxShadow: "0 4px 24px var(--brand-glow)" }}
-      >
-        确认画风 ✨
-      </button>
-    </motion.div>
-  );
-}
+// (画风选择已移除，统一 storybook — 2026-03-13)
 
 // ==================== 时光快进 ====================
 
@@ -2248,7 +2150,7 @@ function CardStage({
   onCardShared?: () => void;
   onNext: () => void;
 }) {
-  // B. 画风选择
+  // B. 灵光卡生成（画风统一 storybook）
   const [phase, setPhase] = useState<"gathering" | "reveal" | "full">("gathering");
   const [saved, setSaved] = useState(false);
 

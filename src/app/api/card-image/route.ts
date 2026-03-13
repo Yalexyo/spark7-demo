@@ -14,17 +14,10 @@ const GEMINI_BASE = process.env.GOOGLE_API_KEY
   ? "https://generativelanguage.googleapis.com"
   : "https://api.302.ai";
 
-// 人格 → 画风
-const artStylePrompts: Record<string, string> = {
-  anime: "Japanese anime illustration, vibrant colors, Studio Ghibli warmth",
-  watercolor: "Soft watercolor painting, dreamy washes, delicate layers",
-  ink: "Chinese ink wash painting, minimalist brushstrokes, zen tranquility",
-  storybook: "Warm storybook illustration, soft shapes, golden hour lighting",
-};
+// 统一画风：storybook（老板决策 2026-03-13，砍掉其他风格）
+const UNIFIED_STYLE = "warm storybook illustration style with soft lighting, keep the cat's real appearance";
 
-const personalityDefaultStyle: Record<string, string> = {
-  storm: "anime", moon: "ink", sun: "storybook", forest: "watercolor",
-};
+// 画风统一 storybook（2026-03-13），artStyle 参数保留做 API 兼容但不再使用
 
 const personalityScenes: Record<string, { scene: string; palette: string; mood: string }> = {
   storm: { scene: "cat leaping in sunset golden light, fur flying, tail high", palette: "warm orange, gold, amber", mood: "vibrant and free" },
@@ -42,12 +35,14 @@ async function generateScene(catName: string, catAppearance: string, personality
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `You are illustrating a scene with a cat named "${catName}" (appearance: ${catAppearance}${personalityHint}, personality type: ${personalityType}).
+          contents: [{ parts: [{ text: `You are a scene director for a cat illustration. The cat named "${catName}" has personality type: ${personalityType}${personalityHint}.
 
 Conversation between the cat and human:
 ${conversation}
 
-Based on the conversation mood and the cat's personality, describe ONE illustration scene in 2 English sentences. Focus on: what the cat is doing, the setting, lighting and atmosphere. The cat is the main subject. Do NOT describe the cat's appearance — only the scene, action, and mood.` }] }],
+Describe ONE scene in 2 English sentences. Focus ONLY on: what the cat is DOING, WHERE it is, the LIGHTING and ATMOSPHERE.
+IMPORTANT: Do NOT describe the cat's appearance (fur color, markings, eye color, body type). Those details come from the reference photo, not from you.
+Just describe: action, location, lighting, mood.` }] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 80 },
         }),
       }
@@ -160,8 +155,8 @@ export async function POST(req: Request) {
     }
 
     const ps = personalityScenes[personalityType] || personalityScenes.sun;
-    const style = artStyle || personalityDefaultStyle[personalityType] || "watercolor";
-    const stylePrompt = artStylePrompts[style] || artStylePrompts.watercolor;
+    // 统一 storybook，忽略前端传来的 artStyle
+    const stylePrompt = UNIFIED_STYLE;
     const catAppearance = catDescription || "a cute domestic cat";
     const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
@@ -176,21 +171,25 @@ export async function POST(req: Request) {
 
     // ===== 有猫照 → Gemini img2img =====
     if (catPhotoBase64) {
-      const geminiImg2ImgPrompt = `IMPORTANT: This is a reference photo of a real cat. You MUST preserve this cat's exact identity in the illustration.
+      const geminiImg2ImgPrompt = `Transform this cat photo into an illustration. The photo is the ONLY source of truth for the cat's appearance.
 
-IDENTITY ANCHOR — copy these traits exactly from the photo:
-- Fur color(s) and pattern (stripes, spots, patches, solid)
-- Face shape, ear shape, eye color
-- Body proportions and size
-- Any unique markings (nose color, paw colors, tail pattern)
+LOOK AT THE PHOTO CAREFULLY. Reproduce this cat exactly as you see it:
+- Copy the EXACT fur colors from the photo (do not shift warm↔cool)
+- Copy the EXACT eye color from the photo
+- Copy the EXACT age/size (kitten or adult)
+- Copy white fur ONLY where it appears in the photo — do NOT add white to chest, paws, or belly unless the photo clearly shows it
 
-Now create an illustration of THIS EXACT CAT in a new scene:
-Scene: ${sceneDescription}
-Art style: ${stylePrompt}
-Color palette: ${ps.palette}
-Mood: ${ps.mood}
+COMMON MISTAKES TO AVOID:
+- Changing eye color (e.g. teal→green, amber→yellow) — match the photo
+- Adding white fur where there is none in the photo
+- Making a kitten look like an adult cat
+- Shifting grey-brown fur to orange, or vice versa
+- Making short fur look fluffy/long — if the cat has short sleek fur, keep it short and sleek. Do NOT add fluffiness or a bushy/plume tail
 
-The cat must be IMMEDIATELY recognizable as the same cat from the reference photo. Do not change any physical features. No text, no watermark, no signature, no borders.`;
+Place this cat in a new scene: ${sceneDescription}
+Style: ${stylePrompt}. Palette hint: ${ps.palette}. Mood: ${ps.mood}.
+The cat's real appearance from the photo ALWAYS overrides style and palette hints.
+Cat is main subject (40%+ of image). No text, no watermark, no other cats.`;
 
       console.log("trying Gemini img2img with identity anchor prompt...");
       const geminiResult = await generateWithGemini(geminiImg2ImgPrompt, catPhotoBase64, catPhotoMime);
