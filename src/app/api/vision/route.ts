@@ -18,17 +18,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "no image" }, { status: 400 });
     }
 
-    const prompt = `You are an expert cat identification specialist. Your description will be used to generate illustrations that MUST look exactly like THIS specific cat. An owner must instantly recognize their cat from your description. ACCURACY IS EVERYTHING.
+    const prompt = `You are an expert cat identification specialist with genetics training. Your description will be used to generate illustrations that MUST look exactly like THIS specific cat. An owner must instantly recognize their cat from your description. ACCURACY IS EVERYTHING.
+
+CRITICAL — LIGHTING COMPENSATION:
+Photos are often taken in warm/golden/sunset lighting that shifts colors. You MUST mentally compensate for ambient lighting and describe the cat's TRUE colors as they would appear under neutral white light. Warm lighting makes brown look orange, grey look warm, and green eyes look amber. COMPENSATE.
+
+CRITICAL — BROWN vs ORANGE TABBY (most common error):
+- BROWN/GREY TABBY: stripes are BLACK or very dark brown (eumelanin). Base fur is brown, grey-brown, or cool-toned. Eyes are often GREEN, hazel, or yellow-green.
+- ORANGE/GINGER TABBY: stripes are DARK ORANGE or dark reddish (phaeomelanin only, no black pigment). Base fur is warm orange/cream. Eyes are often amber or copper.
+- KEY TEST: Look at the DARKEST stripes. If they are BLACK → brown tabby (even if warm light makes the base look orangey). If darkest stripes are dark orange/red → orange tabby.
+- CROSS-CHECK: Green/hazel eyes almost never appear in true orange tabbies. If stripes are black AND eyes are greenish → this is a BROWN tabby, not orange.
 
 Analyze this photo with extreme precision. Pay special attention to:
 - AGE: Is this a kitten (large ears/eyes relative to head, small body) or an adult cat? Be explicit.
-- EYE COLOR: Look very carefully. Common mistakes: confusing teal/aqua with green, confusing amber with yellow. Use the most specific term possible (teal, aqua, blue-green, golden-amber, copper, hazel, vivid green, ice blue, etc.)
+- EYE COLOR: Look very carefully AFTER compensating for lighting. Common mistakes: warm light makes green eyes look amber/golden. If the eye has ANY green tint, it is likely green/hazel, not amber. Use the most specific term possible (olive-green, yellow-green, hazel, golden-amber, copper, vivid green, teal, ice blue, etc.)
 - WHITE AREAS: Be VERY precise about where white fur appears. If white is ONLY on the nose/muzzle, say so. Do NOT assume white chest or white paws unless clearly visible.
+- FUR COLOR: Describe the TRUE color after lighting compensation. State if warm lighting may be affecting the photo.
 
 Return JSON:
 
 1. "appearance": Structured English description in this EXACT format:
-   "A [age: kitten ~X weeks / young cat / adult] [fur length] [body type] [breed or domestic] cat. Fur: [primary color] [pattern type], with [PRECISE color placement — list EXACTLY which body parts are which color. If white is only on muzzle, say 'white limited to muzzle/nose bridge only, no white on chest or paws']. Eyes: [exact color — be very specific, e.g. 'vivid teal/aqua' not just 'green']. Face: [shape] with [nose color] nose. [Unique markings: forehead M, tail rings, chin color, etc.]"
+   "A [age: kitten ~X weeks / young cat / adult] [fur length] [body type] [breed or domestic] cat. Fur: [primary color — after lighting compensation] [pattern type], with [PRECISE color placement — list EXACTLY which body parts are which color. If white is only on muzzle, say 'white limited to muzzle/nose bridge only, no white on chest or paws']. Eyes: [exact color after lighting compensation — be very specific]. Face: [shape] with [nose color] nose. [Unique markings: forehead M, tail rings, chin color, etc.]"
    COLOR PLACEMENT accuracy is the #1 priority. Do NOT exaggerate white areas. (3-4 sentences)
 
 2. "mood": Current expression/posture. (1 sentence)
@@ -60,7 +70,7 @@ Output ONLY the JSON object.`;
           ],
           generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 600,
+            maxOutputTokens: 800,
           },
         }),
       }
