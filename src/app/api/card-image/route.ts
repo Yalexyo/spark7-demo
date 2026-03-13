@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
-// Flux-Schnell via 302.AI
-// 有猫照 → img2img (image_prompt_strength=0.80, 高保真)
-// 无猫照 → txt2img (纯文生图 fallback)
-// 注：Kontext-Pro 保真更好但 20-30s 超 Vercel Hobby 60s 限制
+// 有猫照 → Gemini 3 Pro Image (img2img, 高保真, ~15s)
+// 无猫照 → Gemini 3 Pro Image (txt2img)
+// fallback: Flux-Schnell via 302.AI
 export const maxDuration = 60;
 
 const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
 const API_302 = "https://api.302.ai";
 
-// 场景提炼直连 Google（快 10x）
+// 场景提炼用 Gemini Flash（快）
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 const GEMINI_BASE = process.env.GOOGLE_API_KEY
   ? "https://generativelanguage.googleapis.com"
@@ -34,47 +33,7 @@ const personalityScenes: Record<string, { scene: string; palette: string; mood: 
   forest: { scene: "cat gazing from a quiet corner, green plants and dappled light", palette: "deep green, wood brown, moss green", mood: "calm and profound" },
 };
 
-// ===== 上传猫照到 302.AI 获取 URL =====
-async function uploadCatPhoto(base64: string, mime: string): Promise<string | null> {
-  try {
-    const buffer = Buffer.from(base64, "base64");
-    const ext = mime.includes("png") ? "png" : "jpg";
-    const blob = new Blob([buffer], { type: mime });
-    const formData = new FormData();
-    formData.append("file", blob, `cat.${ext}`);
-
-    const res = await fetch(`${API_302}/302/upload-file`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${API_KEY}` },
-      body: formData,
-    });
-
-    const data = await res.json();
-    if (data?.code === 200 && data?.data) return data.data;
-    console.error("upload failed:", data);
-    return null;
-  } catch (e) {
-    console.error("upload error:", e);
-    return null;
-  }
-}
-
-// ===== 下载图片 URL → base64（避免国内用户加载外部 URL 失败）=====
-async function downloadImageAsBase64(url: string): Promise<{ image: string; mimeType: string } | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    return { image: base64, mimeType: contentType };
-  } catch (e) {
-    console.error("download image error:", e);
-    return null;
-  }
-}
-
-// ===== Gemini 场景提炼（直连 Google，快 10x）=====
+// ===== Gemini 场景提炼（Flash，快）=====
 async function generateScene(catName: string, catAppearance: string, personalityHint: string, personalityType: string, conversation: string): Promise<string | null> {
   try {
     const res = await fetch(
@@ -98,11 +57,104 @@ Based on the conversation mood and the cat's personality, describe ONE illustrat
   } catch { return null; }
 }
 
+// ===== Gemini 图片生成（支持图生图 + 纯文生图）=====
+async function generateWithGemini(
+  prompt: string,
+  catPhotoBase64?: string | null,
+  catPhotoMime?: string,
+): Promise<{ image: string; mimeType: string; mode: string } | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts: any[] = [];
+
+    // 有猫照 → 先放图片（Gemini 图片编辑模式）
+    if (catPhotoBase64) {
+      parts.push({
+        inlineData: {
+          mimeType: catPhotoMime || "image/jpeg",
+          data: catPhotoBase64,
+        },
+      });
+    }
+
+    parts.push({ text: prompt });
+
+    const res = await fetch(
+      `${GEMINI_BASE}/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      console.error("gemini image API error:", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+
+    const data = await res.json();
+    const responseParts = data?.candidates?.[0]?.content?.parts || [];
+
+    for (const part of responseParts) {
+      if (part.inlineData) {
+        return {
+          image: part.inlineData.data,
+          mimeType: part.inlineData.mimeType || "image/jpeg",
+          mode: catPhotoBase64 ? "gemini-img2img" : "gemini-txt2img",
+        };
+      }
+    }
+
+    console.error("gemini image: no image in response, parts:", responseParts.map((p: { text?: string }) => p.text ? "text" : "other"));
+    return null;
+  } catch (e) {
+    console.error("gemini image error:", e);
+    return null;
+  }
+}
+
+// ===== Flux-Schnell fallback（纯文生图）=====
+async function generateWithFlux(prompt: string): Promise<{ image: string; mimeType: string; mode: string } | null> {
+  try {
+    const res = await fetch(`${API_302}/302/submit/flux-schnell`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt, output_format: "jpeg" }),
+    });
+
+    const data = await res.json();
+    const imageUrl = data?.images?.[0]?.url;
+    if (!imageUrl) return null;
+
+    // 下载转 base64
+    const dlRes = await fetch(imageUrl);
+    if (!dlRes.ok) return null;
+    const buffer = await dlRes.arrayBuffer();
+    return {
+      image: Buffer.from(buffer).toString("base64"),
+      mimeType: dlRes.headers.get("content-type") || "image/jpeg",
+      mode: "flux-txt2img",
+    };
+  } catch (e) {
+    console.error("flux fallback error:", e);
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, artStyle, conversation } = await req.json();
 
-    if (!API_KEY) {
+    if (!GOOGLE_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
@@ -112,70 +164,41 @@ export async function POST(req: Request) {
     const catAppearance = catDescription || "a cute domestic cat";
     const personalityHint = catPersonalityDesc ? ` (personality: ${catPersonalityDesc})` : "";
 
-    // ===== 并行：上传猫照 + 场景提炼 =====
     console.log("catPhotoBase64:", catPhotoBase64 ? `${catPhotoBase64.length} chars` : "NONE");
-    const uploadPromise = catPhotoBase64
-      ? uploadCatPhoto(catPhotoBase64, catPhotoMime || "image/jpeg")
-      : Promise.resolve(null);
 
-    const scenePromise = conversation
-      ? generateScene(catName, catAppearance, personalityHint, personalityType, conversation)
-      : Promise.resolve(null);
-
-    const [catPhotoUrl, sceneText] = await Promise.all([uploadPromise, scenePromise]);
-    console.log("catPhotoUrl:", catPhotoUrl || "NONE (upload failed or no photo)");
-    console.log("sceneText:", sceneText?.slice(0, 100) || "NONE (using fallback)");
+    // ===== 场景提炼（并行，不等猫照）=====
+    const sceneText = conversation
+      ? await generateScene(catName, catAppearance, personalityHint, personalityType, conversation)
+      : null;
+    console.log("sceneText:", sceneText?.slice(0, 100) || "NONE");
     const sceneDescription = sceneText || `${catAppearance}${personalityHint}, ${ps.scene}`;
 
-    // ===== 图片生成：有猫照 → Kontext-Pro（高保真图生图）；无猫照 → Schnell（快速文生图）=====
+    // ===== 构建图片 prompt =====
     const catInstruction = catPhotoBase64
-      ? `The cat MUST match the reference photo exactly — same fur color, pattern, and markings. Do NOT change the cat's color.`
+      ? `Based on the reference photo of this cat, create an illustration keeping the EXACT same cat — same fur color, pattern, body shape, and markings. The cat in the illustration must be clearly recognizable as the same cat from the photo.`
       : `The cat has ${catAppearance} features.`;
-    const imagePrompt = `${sceneDescription}. Art style: ${stylePrompt}. Color palette: ${ps.palette}. Mood: ${ps.mood}. ${catInstruction} No text, no watermark, no signature.`;
 
-    let mode: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let imageData: any;
+    const imagePrompt = `${catInstruction}\n\nScene: ${sceneDescription}\nArt style: ${stylePrompt}\nColor palette: ${ps.palette}\nMood: ${ps.mood}\nNo text, no watermark, no signature, no borders.`;
 
-    // ── Flux-Schnell 统一处理（Kontext-Pro 超 Vercel 60s 限制）──
-    const schnellBody: Record<string, unknown> = {
-      prompt: imagePrompt,
-      output_format: "jpeg",
-    };
+    console.log("prompt:", imagePrompt.slice(0, 300));
 
-    if (catPhotoUrl) {
-      mode = "img2img";
-      schnellBody.image_url = catPhotoUrl;
-      schnellBody.image_prompt_strength = 0.80; // 高保真：强调猫照外貌特征
-      console.log("using Flux-Schnell (img2img), strength=0.80, catPhotoUrl:", catPhotoUrl.slice(0, 80));
-    } else {
-      mode = "txt2img";
-      console.log("using Flux-Schnell (txt2img, no cat photo)");
-    }
-    console.log("prompt:", imagePrompt.slice(0, 200));
+    // ===== Gemini 图片生成 =====
+    console.log("trying Gemini 3 Pro Image...");
+    const geminiResult = await generateWithGemini(imagePrompt, catPhotoBase64, catPhotoMime);
 
-    const schnellRes = await fetch(`${API_302}/302/submit/flux-schnell`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(schnellBody),
-    });
-    imageData = await schnellRes.json();
-    console.log("schnell status:", schnellRes.status, "keys:", Object.keys(imageData || {}));
-
-    const imageUrl = imageData?.images?.[0]?.url;
-    if (imageUrl) {
-      // 下载图片转 base64（避免国内用户加载 file.302.ai 失败）
-      const downloaded = await downloadImageAsBase64(imageUrl);
-      if (downloaded) return NextResponse.json({ ...downloaded, mode });
-      // 下载失败则直接返回 URL（fallback）
-      return NextResponse.json({ imageUrl, mode });
+    if (geminiResult) {
+      console.log("gemini success, mode:", geminiResult.mode, "image size:", geminiResult.image.length);
+      return NextResponse.json(geminiResult);
     }
 
-    console.error("image gen failed:", JSON.stringify(imageData).slice(0, 300));
-    return NextResponse.json({ error: imageData?.error?.message || "image generation failed" }, { status: 500 });
+    // ===== Fallback: Flux-Schnell（纯文生图）=====
+    console.log("gemini failed, falling back to Flux-Schnell txt2img");
+    const fluxResult = await generateWithFlux(imagePrompt);
+    if (fluxResult) {
+      return NextResponse.json(fluxResult);
+    }
+
+    return NextResponse.json({ error: "all image generation methods failed" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });
