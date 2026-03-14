@@ -258,6 +258,8 @@ export default function Home() {
     const onVisible = () => {
       if (document.visibilityState === "visible" && !cardImage && selectedStyle && (stage === "card" || stage === "timeline")) {
         console.log("visibility restored, retrying image generation");
+        // 强制重置 pending 状态（后台 fetch 可能已被 iOS 冻结）
+        imageGenPendingRef.current = false;
         startImageGeneration(selectedStyle);
       }
     };
