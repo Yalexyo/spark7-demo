@@ -221,21 +221,20 @@ export default function Home() {
       return r.json();
     }).then(prepareData => {
       if (prepareData.error) throw new Error(prepareData.error);
-      console.log("[card-image] prepare done, mode:", prepareData.mode, "photoURL:", prepareData.photoURL ? "YES" : "NO");
+      console.log("[card-image] prepare done, mode:", prepareData.mode, "hasPhoto:", !!prepareData.photoDataURI);
 
-      // Step 2: 直调 CF Proxy 的 seedream 生图（无超时限制）
+      // Step 2: 直调 CF Proxy → 火山引擎方舟 seedream 生图（无超时限制）
       const CF_PROXY = "https://spark7-gemini-proxy.gstlzy.workers.dev";
       const PROXY_TOKEN = "b8f419cc764d2f1f3de65315fe2d0d567d1d6c208ceaac5963c222c8ba107436";
 
       const seedreamBody: Record<string, unknown> = {
-        model: prepareData.model,
         prompt: prepareData.prompt,
         response_format: "b64_json",
         sequential_image_generation: "disabled",
         watermark: false,
       };
-      if (prepareData.photoURL) {
-        seedreamBody.image = [prepareData.photoURL];
+      if (prepareData.photoDataURI) {
+        seedreamBody.image = [prepareData.photoDataURI];
       }
 
       return fetch(`${CF_PROXY}/doubao/images/generations`, {
