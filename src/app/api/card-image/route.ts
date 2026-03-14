@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
 
-// 架构：Vercel 只做场景提炼，返回 prompt + 猫照 data URI
-// 前端直调 CF Proxy → 火山引擎方舟 seedream 生图（无超时限制）
+// 架构：Vercel 一步到位（场景提炼 + 火山引擎 seedream 生图）
+// 火山引擎直连 17-30s，Vercel 60s 限制够用
 export const maxDuration = 60;
 
-const API_KEY = process.env.API_302_KEY || process.env.GEMINI_API_KEY;
+// 火山引擎方舟 API
+const VOLC_API_KEY = process.env.VOLC_API_KEY;
+const VOLC_ENDPOINT_ID = process.env.VOLC_ENDPOINT_ID;
+const VOLC_BASE = "https://ark.cn-beijing.volces.com/api/v3";
 
-// 场景提炼用 Gemini Flash（快）
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+// 场景提炼用 Gemini Flash
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.API_302_KEY;
 const GEMINI_BASE = process.env.GOOGLE_API_KEY
   ? "https://generativelanguage.googleapis.com"
   : "https://api.302.ai";
 
-// 统一画风：storybook（老板决策 2026-03-13，砍掉其他风格）
 const UNIFIED_STYLE = "warm storybook illustration style with soft lighting, keep the cat's real appearance";
-
-// 画风统一 storybook（2026-03-13），artStyle 参数保留做 API 兼容但不再使用
 
 const personalityScenes: Record<string, { scene: string; palette: string; mood: string }> = {
   storm: { scene: "cat leaping in sunset golden light, fur flying, tail high", palette: "warm orange, gold, amber", mood: "vibrant and free" },
@@ -24,7 +24,7 @@ const personalityScenes: Record<string, { scene: string; palette: string; mood: 
   forest: { scene: "cat gazing from a quiet corner, green plants and dappled light", palette: "deep green, wood brown, moss green", mood: "calm and profound" },
 };
 
-// ===== Gemini 场景提炼（Flash，快）=====
+// ===== Gemini 场景提炼（Flash，<5s）=====
 async function generateScene(catName: string, catAppearance: string, personalityHint: string, personalityType: string, conversation: string): Promise<string | null> {
   try {
     const res = await fetch(
@@ -50,14 +50,66 @@ Just describe: action, location, lighting, mood.` }] }],
   } catch { return null; }
 }
 
-// 注：图片生成逻辑已搬到前端直调 CF Proxy → 火山引擎方舟
-// Vercel 只做场景提炼，不再做图片生成/上传
+// ===== 火山引擎 Seedream 生图（直连，17-30s）=====
+async function generateWithSeedream(
+  prompt: string,
+  catPhotoBase64?: string | null,
+  catPhotoMime?: string,
+): Promise<{ image: string; mimeType: string; mode: string } | null> {
+  if (!VOLC_API_KEY || !VOLC_ENDPOINT_ID) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: Record<string, any> = {
+      model: VOLC_ENDPOINT_ID,
+      prompt,
+      response_format: "b64_json",
+      sequential_image_generation: "disabled",
+      watermark: false,
+    };
+
+    // 有猫照 → img2img（传 data URI）
+    if (catPhotoBase64) {
+      body.image = [`data:${catPhotoMime || "image/jpeg"};base64,${catPhotoBase64}`];
+    }
+
+    console.log("seedream request: mode=", catPhotoBase64 ? "img2img" : "txt2img");
+    const res = await fetch(`${VOLC_BASE}/images/generations`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${VOLC_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      console.error("seedream error:", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+
+    const data = await res.json();
+    const b64 = data?.data?.[0]?.b64_json;
+    if (!b64) {
+      console.error("seedream: no b64 in response");
+      return null;
+    }
+
+    return {
+      image: b64,
+      mimeType: "image/jpeg",
+      mode: catPhotoBase64 ? "seedream-img2img" : "seedream-txt2img",
+    };
+  } catch (e) {
+    console.error("seedream error:", e);
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
     const { catName, personalityType, catDescription, catPersonalityDesc, catPhotoBase64, catPhotoMime, conversation } = await req.json();
 
-    if (!GOOGLE_API_KEY && !API_KEY) {
+    if (!GOOGLE_API_KEY) {
       return NextResponse.json({ error: "no api key" }, { status: 500 });
     }
 
@@ -72,17 +124,13 @@ export async function POST(req: Request) {
       : null;
     const sceneDescription = sceneText || `${ps.scene}`;
 
-    // 猫照由前端直接持有，不通过 Vercel 中转（避免 body 过大）
-    const hasPhoto = !!catPhotoBase64;
-
-    // ===== Step 3: 构建 prompt =====
+    // ===== Step 2: 构建 prompt =====
     const hasVisionDesc = catAppearance && catAppearance !== "a cute domestic cat";
     let prompt: string;
 
-    if (hasPhoto) {
-      // img2img prompt（双通道锚定）
+    if (catPhotoBase64) {
       const visionAnchor = hasVisionDesc
-        ? `\n\nVERIFIED CAT DESCRIPTION (from photo analysis):\n${catAppearance}\n\nUse BOTH the reference photo AND the description above as dual anchors. They must agree in the output.`
+        ? `\n\nVERIFIED CAT DESCRIPTION (from photo analysis):\n${catAppearance}\n\nUse BOTH the reference photo AND the description above as dual anchors.`
         : "";
 
       prompt = `Transform this cat photo into an illustration while keeping the cat's identity PERFECTLY intact.${visionAnchor}
@@ -100,18 +148,22 @@ Style must NOT alter the cat's physical features.
 
 The cat is the main subject (40%+ of image). Square composition. No text. No other cats.`;
     } else {
-      // txt2img prompt
       prompt = `${stylePrompt} illustration of a cat named ${catName} with ${catAppearance} features${personalityHint}.
 Scene: ${sceneDescription}
 Color palette: ${ps.palette}. Mood: ${ps.mood}.
 No text, no watermark. Square composition.`;
     }
 
-    // ===== 返回 prompt，前端用本地 base64 + CF Proxy 生图 =====
-    return NextResponse.json({
-      prompt,
-      mode: hasPhoto ? "img2img" : "txt2img",
-    });
+    // ===== Step 3: 火山引擎 Seedream 生图（直连，17-30s）=====
+    console.log("=== card-image: calling seedream ===");
+    const result = await generateWithSeedream(prompt, catPhotoBase64, catPhotoMime);
+    if (result) {
+      console.log("card-image success:", result.mode, "b64 length:", result.image.length);
+      return NextResponse.json(result);
+    }
+
+    console.error("card-image: seedream failed, no fallback");
+    return NextResponse.json({ error: "image generation failed" }, { status: 500 });
   } catch (e) {
     console.error("card-image error:", e);
     return NextResponse.json({ error: "api error" }, { status: 500 });

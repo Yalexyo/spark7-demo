@@ -213,87 +213,27 @@ export default function Home() {
     const bodyStr = JSON.stringify(bodyPayload);
     console.log("[card-image] catPhotoBase64:", photoB64 ? `${photoB64.length} chars` : "NONE", "| body size:", (bodyStr.length / 1024).toFixed(0) + "KB");
 
-    const CF_PROXY = "https://spark7-gemini-proxy.gstlzy.workers.dev";
-    const PROXY_TOKEN = "b8f419cc764d2f1f3de65315fe2d0d567d1d6c208ceaac5963c222c8ba107436";
-    let savedPrompt = "";
-
-    // 图片生成：用 async 函数确保错误处理正确
+    // 一步到位：Vercel API 做场景提炼 + 火山引擎 seedream 生图
     (async () => {
       try {
-        // Step 1: Vercel API 做场景提炼（<10s）
-        console.log("[card-image] step 1: calling Vercel prepare...");
-        const prepareRes = await fetch("/api/card-image", {
+        console.log("[card-image] calling /api/card-image...");
+        const res = await fetch("/api/card-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: bodyStr,
         });
-        if (!prepareRes.ok) throw new Error(`card-image HTTP ${prepareRes.status}`);
-        const prepareData = await prepareRes.json();
-        if (prepareData.error) throw new Error(prepareData.error);
-        console.log("[card-image] step 1 done, mode:", prepareData.mode);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        if (d.error) throw new Error(d.error);
 
-        // Step 2: 直调 CF Proxy → 火山引擎方舟 seedream 生图
-        const seedreamBody: Record<string, unknown> = {
-          prompt: prepareData.prompt,
-          response_format: "b64_json",
-          sequential_image_generation: "disabled",
-          watermark: false,
-        };
-        if (prepareData.mode === "img2img" && photoB64) {
-          seedreamBody.image = [`data:${photoMime || "image/jpeg"};base64,${photoB64}`];
-          console.log("[card-image] step 2: seedream img2img, photo b64 length:", photoB64.length);
+        if (d.image && d.mimeType) {
+          console.log("[card-image] ✅ success, mode:", d.mode, "b64 length:", d.image.length);
+          setCardImage(`data:${d.mimeType};base64,${d.image}`);
+        } else if (d.imageUrl) {
+          setCardImage(d.imageUrl);
         } else {
-          console.log("[card-image] step 2: seedream txt2img (no photo)");
+          throw new Error("no image in response");
         }
-
-        console.log("[card-image] calling CF Proxy seedream...");
-        const seedreamRes = await fetch(`${CF_PROXY}/doubao/images/generations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${PROXY_TOKEN}`,
-          },
-          body: JSON.stringify(seedreamBody),
-        });
-
-        if (seedreamRes.ok) {
-          const seedreamData = await seedreamRes.json();
-          const b64 = seedreamData?.data?.[0]?.b64_json;
-          if (b64) {
-            console.log("[card-image] ✅ seedream success, b64 length:", b64.length);
-            setCardImage(`data:image/jpeg;base64,${b64}`);
-            return; // 成功，结束
-          }
-        }
-        console.warn("[card-image] seedream failed (status:", seedreamRes.status, "), trying Gemini...");
-
-        // Step 3: Gemini fallback
-        const geminiBody = {
-          contents: [{ parts: [
-            ...(photoB64 ? [{ inlineData: { mimeType: photoMime || "image/jpeg", data: photoB64 } }] : []),
-            { text: prepareData.prompt || `warm storybook illustration of a cat named ${catName}` },
-          ]}],
-          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-        };
-        console.log("[card-image] calling CF Proxy Gemini fallback...");
-        const geminiRes = await fetch(`${CF_PROXY}/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${PROXY_TOKEN}`,
-          },
-          body: JSON.stringify(geminiBody),
-        });
-        const geminiData = await geminiRes.json();
-        const parts = geminiData?.candidates?.[0]?.content?.parts || [];
-        for (const p of parts) {
-          if (p.inlineData) {
-            console.log("[card-image] ✅ Gemini fallback success");
-            setCardImage(`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`);
-            return; // 成功，结束
-          }
-        }
-        throw new Error("所有生图方式都失败了");
       } catch (e) {
         console.error("[card-image] ❌ error:", e);
         setCardImageError("灵光卡生成失败，请点击重试");
