@@ -4,10 +4,9 @@ import { NextResponse } from "next/server";
 // 火山引擎直连 17-30s，Vercel 60s 限制够用
 export const maxDuration = 60;
 
-// 火山引擎方舟 API
-const VOLC_API_KEY = process.env.VOLC_API_KEY;
-const VOLC_ENDPOINT_ID = process.env.VOLC_ENDPOINT_ID;
-const VOLC_BASE = "https://ark.cn-beijing.volces.com/api/v3";
+// 火山引擎 seedream 通过 CF Proxy 转发（Vercel 海外 → 火山北京不通，需要 CF Proxy 中转）
+const CF_PROXY = "https://spark7-gemini-proxy.gstlzy.workers.dev";
+const CF_PROXY_TOKEN = process.env.CF_PROXY_TOKEN || "b8f419cc764d2f1f3de65315fe2d0d567d1d6c208ceaac5963c222c8ba107436";
 
 // 场景提炼用 Gemini Flash
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.API_302_KEY;
@@ -50,33 +49,30 @@ Just describe: action, location, lighting, mood.` }] }],
   } catch { return null; }
 }
 
-// ===== 火山引擎 Seedream 生图（直连，17-30s）=====
+// ===== Seedream 生图（通过 CF Proxy → 火山引擎，17-30s）=====
 async function generateWithSeedream(
   prompt: string,
   catPhotoBase64?: string | null,
   catPhotoMime?: string,
 ): Promise<{ image: string; mimeType: string; mode: string } | null> {
-  if (!VOLC_API_KEY || !VOLC_ENDPOINT_ID) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: Record<string, any> = {
-      model: VOLC_ENDPOINT_ID,
       prompt,
       response_format: "b64_json",
       sequential_image_generation: "disabled",
       watermark: false,
     };
 
-    // 有猫照 → img2img（传 data URI）
     if (catPhotoBase64) {
       body.image = [`data:${catPhotoMime || "image/jpeg"};base64,${catPhotoBase64}`];
     }
 
-    console.log("seedream request: mode=", catPhotoBase64 ? "img2img" : "txt2img");
-    const res = await fetch(`${VOLC_BASE}/images/generations`, {
+    console.log("seedream via CF Proxy, mode:", catPhotoBase64 ? "img2img" : "txt2img");
+    const res = await fetch(`${CF_PROXY}/doubao/images/generations`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${VOLC_API_KEY}`,
+        "Authorization": `Bearer ${CF_PROXY_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
