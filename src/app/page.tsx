@@ -152,6 +152,7 @@ export default function Home() {
   // 图片预生成（统一 storybook，画风选择已移除）
   const [selectedStyle, setSelectedStyle] = useState<string>("storybook");
   const [cardImage, setCardImage] = useState<string | null>(null); // 不从 sessionStorage 恢复（太大）
+  const [cardImageError, setCardImageError] = useState<string | null>(null);
 
   // ── 自动保存状态到 sessionStorage ──
   useEffect(() => {
@@ -182,6 +183,7 @@ export default function Home() {
     imageGenPendingRef.current = true;
     setSelectedStyle(style);
     setCardImage(null);
+    setCardImageError(null);
     const conversationForApi = chatHistory.length > 0
       ? chatHistory.map(m => `${m.from === "cat" ? catName : "主人"}: ${m.text}`).join("\n")
       : chatReply || "";
@@ -287,7 +289,10 @@ export default function Home() {
         }
         console.error("[card-image] Gemini fallback also failed");
       });
-    }).catch((e) => { console.error("[card-image] all methods failed:", e); }).finally(() => { imageGenPendingRef.current = false; });
+    }).catch((e) => {
+      console.error("[card-image] all methods failed:", e);
+      setCardImageError("灵光卡生成失败，请点击重试");
+    }).finally(() => { imageGenPendingRef.current = false; });
   };
 
   // 从 sessionStorage 恢复到 card/exit stage 但没图片时，自动重新生成
@@ -473,6 +478,8 @@ export default function Home() {
             catDescriptionEn={catDescriptionEn}
             catPersonalityDesc={catPersonalityDesc}
             preloadedImage={cardImage}
+            imageError={cardImageError}
+            onRetryImage={() => startImageGeneration("storybook")}
             onCardSaved={() => { setCardSaved(true); track('card_save'); }}
             onCardShared={() => { setCardShared(true); track('card_share'); }}
             onNext={() => setStage("exit")}
@@ -2193,6 +2200,8 @@ function CardStage({
   catDescriptionEn,
   catPersonalityDesc,
   preloadedImage,
+  imageError,
+  onRetryImage,
   onCardSaved,
   onCardShared,
   onNext,
@@ -2208,6 +2217,8 @@ function CardStage({
   catDescriptionEn?: string | null;
   catPersonalityDesc?: string;
   preloadedImage?: string | null;
+  imageError?: string | null;
+  onRetryImage?: () => void;
   onCardSaved?: () => void;
   onCardShared?: () => void;
   onNext: () => void;
@@ -2465,14 +2476,27 @@ function CardStage({
                 >
                   {p.emoji}
                 </motion.span>
-                <motion.span
-                  animate={{ opacity: [0, 0.4, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, delay: 1 }}
-                  className="text-xs mt-2"
-                  style={{ color: `rgba(${p.colorRgb}, 0.5)` }}
-                >
-                  画面生成中…
-                </motion.span>
+                {imageError ? (
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    <span className="text-xs text-red-400">{imageError}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRetryImage?.(); }}
+                      className="px-3 py-1 text-xs rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                      style={{ color: `rgba(${p.colorRgb}, 0.8)` }}
+                    >
+                      🔄 重新生成
+                    </button>
+                  </div>
+                ) : (
+                  <motion.span
+                    animate={{ opacity: [0, 0.4, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, delay: 1 }}
+                    className="text-xs mt-2"
+                    style={{ color: `rgba(${p.colorRgb}, 0.5)` }}
+                  >
+                    画面生成中…
+                  </motion.span>
+                )}
               </div>
             )}
 
