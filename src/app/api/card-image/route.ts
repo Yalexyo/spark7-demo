@@ -72,16 +72,14 @@ export async function POST(req: Request) {
       : null;
     const sceneDescription = sceneText || `${ps.scene}`;
 
-    // ===== Step 2: 构建猫照 data URI（火山引擎直接接受 base64）=====
-    const photoDataURI = catPhotoBase64
-      ? `data:${catPhotoMime || "image/jpeg"};base64,${catPhotoBase64}`
-      : null;
+    // 猫照由前端直接持有，不通过 Vercel 中转（避免 body 过大）
+    const hasPhoto = !!catPhotoBase64;
 
     // ===== Step 3: 构建 prompt =====
     const hasVisionDesc = catAppearance && catAppearance !== "a cute domestic cat";
     let prompt: string;
 
-    if (photoDataURI) {
+    if (hasPhoto) {
       // img2img prompt（双通道锚定）
       const visionAnchor = hasVisionDesc
         ? `\n\nVERIFIED CAT DESCRIPTION (from photo analysis):\n${catAppearance}\n\nUse BOTH the reference photo AND the description above as dual anchors. They must agree in the output.`
@@ -109,11 +107,10 @@ Color palette: ${ps.palette}. Mood: ${ps.mood}.
 No text, no watermark. Square composition.`;
     }
 
-    // ===== 返回 prompt + photoDataURI，前端直调 CF Proxy 生图 =====
+    // ===== 返回 prompt，前端用本地 base64 + CF Proxy 生图 =====
     return NextResponse.json({
       prompt,
-      photoDataURI,
-      mode: photoDataURI ? "img2img" : "txt2img",
+      mode: hasPhoto ? "img2img" : "txt2img",
     });
   } catch (e) {
     console.error("card-image error:", e);
