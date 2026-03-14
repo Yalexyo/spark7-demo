@@ -217,82 +217,90 @@ export default function Home() {
     const PROXY_TOKEN = "b8f419cc764d2f1f3de65315fe2d0d567d1d6c208ceaac5963c222c8ba107436";
     let savedPrompt = "";
 
-    // Step 1: Vercel API 做场景提炼（<10s）
-    fetch("/api/card-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: bodyStr,
-    }).then(r => {
-      if (!r.ok) throw new Error(`card-image HTTP ${r.status}`);
-      return r.json();
-    }).then(prepareData => {
-      if (prepareData.error) throw new Error(prepareData.error);
-      savedPrompt = prepareData.prompt;
-      console.log("[card-image] prepare done, mode:", prepareData.mode);
+    // 图片生成：用 async 函数确保错误处理正确
+    (async () => {
+      try {
+        // Step 1: Vercel API 做场景提炼（<10s）
+        console.log("[card-image] step 1: calling Vercel prepare...");
+        const prepareRes = await fetch("/api/card-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: bodyStr,
+        });
+        if (!prepareRes.ok) throw new Error(`card-image HTTP ${prepareRes.status}`);
+        const prepareData = await prepareRes.json();
+        if (prepareData.error) throw new Error(prepareData.error);
+        console.log("[card-image] step 1 done, mode:", prepareData.mode);
 
-      // Step 2: 直调 CF Proxy → 火山引擎方舟 seedream 生图
-      const seedreamBody: Record<string, unknown> = {
-        prompt: prepareData.prompt,
-        response_format: "b64_json",
-        sequential_image_generation: "disabled",
-        watermark: false,
-      };
-      // 用前端本地的 base64 构建 data URI（不经过 Vercel 中转）
-      if (prepareData.mode === "img2img" && photoB64) {
-        seedreamBody.image = [`data:${photoMime || "image/jpeg"};base64,${photoB64}`];
-      }
+        // Step 2: 直调 CF Proxy → 火山引擎方舟 seedream 生图
+        const seedreamBody: Record<string, unknown> = {
+          prompt: prepareData.prompt,
+          response_format: "b64_json",
+          sequential_image_generation: "disabled",
+          watermark: false,
+        };
+        if (prepareData.mode === "img2img" && photoB64) {
+          seedreamBody.image = [`data:${photoMime || "image/jpeg"};base64,${photoB64}`];
+          console.log("[card-image] step 2: seedream img2img, photo b64 length:", photoB64.length);
+        } else {
+          console.log("[card-image] step 2: seedream txt2img (no photo)");
+        }
 
-      return fetch(`${CF_PROXY}/doubao/images/generations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${PROXY_TOKEN}`,
-        },
-        body: JSON.stringify(seedreamBody),
-      });
-    }).then(r => {
-      if (!r.ok) throw new Error(`seedream HTTP ${r.status}`);
-      return r.json();
-    }).then(d => {
-      const b64 = d?.data?.[0]?.b64_json;
-      if (b64) {
-        console.log("[card-image] seedream success via 火山引擎, b64 length:", b64.length);
-        setCardImage(`data:image/jpeg;base64,${b64}`);
-      } else {
-        throw new Error("seedream: no image in response");
-      }
-    }).catch((e) => {
-      console.warn("[card-image] seedream failed, trying Gemini fallback:", e.message);
-      // Gemini fallback: 调 CF Proxy 的 Gemini 图片生成
-      const geminiBody = {
-        contents: [{ parts: [
-          ...(photoB64 ? [{ inlineData: { mimeType: photoMime || "image/jpeg", data: photoB64 } }] : []),
-          { text: savedPrompt || `warm storybook illustration of a cat named ${catName}` },
-        ]}],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-      };
-      return fetch(`${CF_PROXY}/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${PROXY_TOKEN}`,
-        },
-        body: JSON.stringify(geminiBody),
-      }).then(r => r.json()).then(gd => {
-        const parts = gd?.candidates?.[0]?.content?.parts || [];
-        for (const p of parts) {
-          if (p.inlineData) {
-            console.log("[card-image] Gemini fallback success");
-            setCardImage(`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`);
-            return;
+        console.log("[card-image] calling CF Proxy seedream...");
+        const seedreamRes = await fetch(`${CF_PROXY}/doubao/images/generations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${PROXY_TOKEN}`,
+          },
+          body: JSON.stringify(seedreamBody),
+        });
+
+        if (seedreamRes.ok) {
+          const seedreamData = await seedreamRes.json();
+          const b64 = seedreamData?.data?.[0]?.b64_json;
+          if (b64) {
+            console.log("[card-image] ✅ seedream success, b64 length:", b64.length);
+            setCardImage(`data:image/jpeg;base64,${b64}`);
+            return; // 成功，结束
           }
         }
-        console.error("[card-image] Gemini fallback also failed");
-      });
-    }).catch((e) => {
-      console.error("[card-image] all methods failed:", e);
-      setCardImageError("灵光卡生成失败，请点击重试");
-    }).finally(() => { imageGenPendingRef.current = false; });
+        console.warn("[card-image] seedream failed (status:", seedreamRes.status, "), trying Gemini...");
+
+        // Step 3: Gemini fallback
+        const geminiBody = {
+          contents: [{ parts: [
+            ...(photoB64 ? [{ inlineData: { mimeType: photoMime || "image/jpeg", data: photoB64 } }] : []),
+            { text: prepareData.prompt || `warm storybook illustration of a cat named ${catName}` },
+          ]}],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+        };
+        console.log("[card-image] calling CF Proxy Gemini fallback...");
+        const geminiRes = await fetch(`${CF_PROXY}/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${PROXY_TOKEN}`,
+          },
+          body: JSON.stringify(geminiBody),
+        });
+        const geminiData = await geminiRes.json();
+        const parts = geminiData?.candidates?.[0]?.content?.parts || [];
+        for (const p of parts) {
+          if (p.inlineData) {
+            console.log("[card-image] ✅ Gemini fallback success");
+            setCardImage(`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`);
+            return; // 成功，结束
+          }
+        }
+        throw new Error("所有生图方式都失败了");
+      } catch (e) {
+        console.error("[card-image] ❌ error:", e);
+        setCardImageError("灵光卡生成失败，请点击重试");
+      } finally {
+        imageGenPendingRef.current = false;
+      }
+    })();
   };
 
   // 从 sessionStorage 恢复到 card/exit stage 但没图片时，自动重新生成
